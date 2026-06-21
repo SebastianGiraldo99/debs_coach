@@ -1,0 +1,220 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ─── Enums ────────────────────────────────────────────────────────────────────
+
+enum RolUsuario {
+  usuario
+  admin
+}
+
+enum EstadoUsuario {
+  pendiente
+  activo
+  bloqueado
+}
+
+enum TipoDeuda {
+  tarjeta_credito
+  credito
+  hipoteca
+  terceros
+  otro
+}
+
+enum EstadoDeuda {
+  activa
+  saldada
+}
+
+enum CategoriaIngreso {
+  salario
+  arriendo
+  negocio
+  intereses
+  otro
+}
+
+enum CategoriaEgreso {
+  impuestos
+  mercado
+  recibos
+  colegiaturas
+  hijos
+  otro
+}
+
+enum EstadoObjetivo {
+  activo
+  logrado
+  cancelado
+}
+
+enum TipoEvento {
+  check_in
+  deuda_pagada
+  deuda_nueva
+  ingreso_actualizado
+  egreso_actualizado
+  objetivo_creado
+  objetivo_logrado
+  ingreso_extra
+  plan_generado
+}
+
+enum TriggerPlan {
+  onboarding
+  check_in
+  ingreso_extra
+}
+
+enum EstadoInvitacion {
+  pendiente
+  usado
+  expirado
+}
+
+// ─── Modelos ─────────────────────────────────────────────────────────────────
+
+model Usuario {
+  id            String        @id @default(uuid())
+  nombre        String
+  email         String        @unique
+  passwordHash  String        @map("password_hash")
+  rol           RolUsuario    @default(usuario)
+  estado        EstadoUsuario @default(pendiente)
+  ultimoAcceso  DateTime?     @map("ultimo_acceso")
+  createdAt     DateTime      @default(now()) @map("created_at")
+
+  objetivos      Objetivo[]
+  deudas         Deuda[]
+  ingresos       Ingreso[]
+  egresos        Egreso[]
+  ingresosExtra  IngresoExtra[]
+  checkIns       CheckIn[]
+  planesIa       PlanIa[]
+  eventos        Evento[]
+
+  @@map("usuarios")
+}
+
+model Objetivo {
+  id             String         @id @default(uuid())
+  usuarioId      String         @map("usuario_id")
+  intencion      String
+  estado         EstadoObjetivo @default(activo)
+  editableDesde  DateTime       @map("editable_desde")
+  createdAt      DateTime       @default(now()) @map("created_at")
+
+  usuario Usuario @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+
+  @@map("objetivos")
+}
+
+model Deuda {
+  id             String      @id @default(uuid())
+  usuarioId      String      @map("usuario_id")
+  tipo           TipoDeuda
+  montoOriginal  Decimal     @map("monto_original") @db.Decimal(15, 2)
+  montoActual    Decimal     @map("monto_actual") @db.Decimal(15, 2)
+  tasaInteres    Decimal?    @map("tasa_interes") @db.Decimal(5, 2)
+  estado         EstadoDeuda @default(activa)
+  createdAt      DateTime    @default(now()) @map("created_at")
+
+  usuario Usuario @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+
+  @@map("deudas")
+}
+
+model Ingreso {
+  id            String           @id @default(uuid())
+  usuarioId     String           @map("usuario_id")
+  categoria     CategoriaIngreso
+  montoMensual  Decimal          @map("monto_mensual") @db.Decimal(15, 2)
+  createdAt     DateTime         @default(now()) @map("created_at")
+
+  usuario Usuario @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+
+  @@map("ingresos")
+}
+
+model Egreso {
+  id            String          @id @default(uuid())
+  usuarioId     String          @map("usuario_id")
+  categoria     CategoriaEgreso
+  montoMensual  Decimal         @map("monto_mensual") @db.Decimal(15, 2)
+  createdAt     DateTime        @default(now()) @map("created_at")
+
+  usuario Usuario @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+
+  @@map("egresos")
+}
+
+model IngresoExtra {
+  id          String   @id @default(uuid())
+  usuarioId   String   @map("usuario_id")
+  monto       Decimal  @db.Decimal(15, 2)
+  descripcion String
+  fecha       DateTime @db.Date
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  usuario Usuario @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+
+  @@map("ingresos_extra")
+}
+
+model CheckIn {
+  id               String   @id @default(uuid())
+  usuarioId        String   @map("usuario_id")
+  pagosRealizados  Json     @map("pagos_realizados")
+  nuevasDeudas     Json     @map("nuevas_deudas")
+  ingresosExtra    Json     @map("ingresos_extra")
+  respuestaIa      String   @map("respuesta_ia")
+  planGenerado     Json     @map("plan_generado")
+  createdAt        DateTime @default(now()) @map("created_at")
+
+  usuario Usuario @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+
+  @@map("check_ins")
+}
+
+model PlanIa {
+  id          String      @id @default(uuid())
+  usuarioId   String      @map("usuario_id")
+  contenido   Json
+  trigger     TriggerPlan
+  createdAt   DateTime    @default(now()) @map("created_at")
+
+  usuario Usuario @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+
+  @@map("planes_ia")
+}
+
+model Evento {
+  id           String     @id @default(uuid())
+  usuarioId    String     @map("usuario_id")
+  tipo         TipoEvento
+  payload      Json
+  progresoPct  Decimal?   @map("progreso_pct") @db.Decimal(5, 2)
+  createdAt    DateTime   @default(now()) @map("created_at")
+
+  usuario Usuario @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+
+  @@map("eventos")
+}
+
+model Invitacion {
+  id           String           @id @default(uuid())
+  emailDestino String           @map("email_destino")
+  token        String           @unique
+  estado       EstadoInvitacion @default(pendiente)
+  expiresAt    DateTime         @map("expires_at")
+  createdAt    DateTime         @default(now()) @map("created_at")
+
+  @@map("invitaciones")
+}
