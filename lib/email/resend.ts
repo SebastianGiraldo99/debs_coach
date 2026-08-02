@@ -23,8 +23,24 @@ function obtenerCliente(): Resend {
   return cliente
 }
 
+/** Nombre visible del remitente y firma del pie. Una sola constante para que
+ *  la bandeja de entrada y el cuerpo del correo no se desincronicen. */
+const NOMBRE_REMITENTE = "Coach Financiero Agotech"
+
+const DIRECCION_POR_DEFECTO = "coach@mail.agotech.cloud"
+
+/**
+ * Compone el `from` en formato RFC 5322 (`Nombre <dir@dominio>`).
+ *
+ * Si EMAIL_FROM trae solo la dirección, se le antepone el nombre: sin nombre
+ * visible los clientes de correo muestran el local-part —"coach"— que no
+ * dice nada al destinatario.
+ */
 function remitente(): string {
-  return process.env.EMAIL_FROM ?? "Coach Financiero <coach@mail.agotech.cloud>"
+  const valor = process.env.EMAIL_FROM?.trim()
+  if (!valor) return `${NOMBRE_REMITENTE} <${DIRECCION_POR_DEFECTO}>`
+  if (valor.includes("<")) return valor
+  return `${NOMBRE_REMITENTE} <${valor}>`
 }
 
 /** Sin API key trabajamos en modo consola: permite desarrollar el flujo de
@@ -125,7 +141,7 @@ function construirHtml({ titulo, parrafos, cta, nota }: Contenido): string {
           </td>
         </tr>
       </table>
-      <p style="margin:20px 0 0;font-family:${FUENTE};font-size:13px;color:${PALETA.inkMute};">Coach Financiero</p>
+      <p style="margin:20px 0 0;font-family:${FUENTE};font-size:13px;color:${PALETA.inkMute};">${NOMBRE_REMITENTE}</p>
     </td>
   </tr>
 </table>
@@ -138,7 +154,7 @@ function construirTexto({ titulo, parrafos, cta, nota }: Contenido): string {
   const partes = [titulo, "", ...parrafos]
   if (cta) partes.push("", `${cta.texto}: ${cta.url}`)
   if (nota) partes.push("", nota)
-  partes.push("", "— Coach Financiero")
+  partes.push("", `— ${NOMBRE_REMITENTE}`)
   return partes.join("\n")
 }
 
@@ -150,7 +166,7 @@ async function enviar(
   if (modoConsola()) {
     console.info(
       `[email:consola] Sin RESEND_API_KEY. Correo no enviado.\n` +
-        `  para: ${destino}\n  asunto: ${asunto}\n` +
+        `  de: ${remitente()}\n  para: ${destino}\n  asunto: ${asunto}\n` +
         (contenido.cta ? `  enlace: ${contenido.cta.url}\n` : ""),
     )
     return { ok: true, id: "modo-consola" }
