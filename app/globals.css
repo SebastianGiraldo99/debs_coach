@@ -1,26 +1,80 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+@theme {
+  /* ── Neutros cálidos (papel y tinta) ───────────────────────── */
+  --color-paper: #fbf9f6; /* fondo de página */
+  --color-surface: #ffffff; /* tarjetas, inputs */
+  --color-surface-alt: #f4f1eb; /* filas alternas, fondos sutiles */
+  --color-ink: #1a1815; /* texto principal */
+  --color-ink-soft: #5b554e; /* texto secundario */
+  --color-ink-mute: #8a8279; /* etiquetas, texto terciario */
+  --color-line: #e7e2da; /* bordes */
+  --color-line-strong: #d4ccc0; /* bordes de input, separadores fuertes */
+
+  /* ── Primario: verde petróleo ──────────────────────────────── */
+  --color-primary: #0e4f4b;
+  --color-primary-hover: #0a3e3b;
+  --color-primary-soft: #e3efed; /* solo fondos */
+  --color-on-primary: #fbf9f6;
+
+  /* ── Semánticos financieros ────────────────────────────────── */
+  --color-deuda: #a6462f; /* terracota — deuda, saldos negativos */
+  --color-deuda-soft: #f7e9e4;
+  --color-avance: #3f6b4a; /* salvia — progreso, disponible */
+  --color-avance-soft: #e7efe8;
+  --color-atencion: #8a5a0b; /* ámbar oscuro — avisos (texto) */
+  --color-atencion-mid: #b47a16; /* ámbar — solo íconos y bordes */
+  --color-atencion-soft: #faf0dc;
+
+  /* ── Tipografía ────────────────────────────────────────────── */
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+
+  --text-cifra: 2.5rem;
+  --text-cifra--line-height: 1.1;
+  --text-titulo: 1.75rem;
+  --text-titulo--line-height: 1.2;
+  --text-seccion: 1.25rem;
+  --text-seccion--line-height: 1.4;
+  --text-cuerpo: 1rem;
+  --text-cuerpo--line-height: 1.625;
+  --text-menor: 0.875rem;
+  --text-menor--line-height: 1.43;
+  --text-micro: 0.75rem;
+  --text-micro--line-height: 1.33;
+
+  /* ── Radios ────────────────────────────────────────────────── */
+  --radius-campo: 8px;
+  --radius-card: 12px;
+
+  /* ── Sombra: una sola, casi invisible ──────────────────────── */
+  --shadow-card: 0 1px 2px rgb(26 24 21 / 0.05);
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+@layer base {
+  body {
+    background-color: var(--color-paper);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    font-size: var(--text-cuerpo);
+    line-height: var(--text-cuerpo--line-height);
+    -webkit-font-smoothing: antialiased;
   }
-}
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  /* Foco visible y consistente en toda la app */
+  :focus-visible {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+
+  /* Respeta prefers-reduced-motion (§20) */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.001ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.001ms !important;
+    }
+  }
 }
