@@ -1,5 +1,3 @@
-import { Decimal } from "@prisma/client/runtime/library"
-
 export interface ContextoFinanciero {
   intencion: string
   objetivos: { intencion: string }[]

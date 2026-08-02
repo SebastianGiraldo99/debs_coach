@@ -1,10 +1,10 @@
-import { SignJWT, jwtVerify } from "jose"
+import { SignJWT, jwtVerify, type JWTPayload } from "jose"
 import { cookies } from "next/headers"
 
 const SECRET = new TextEncoder().encode(process.env.JWT_SECRET!)
 const COOKIE = "coach_session"
 
-export interface SessionPayload {
+export interface SessionPayload extends JWTPayload {
   userId: string
   rol: "usuario" | "admin"
 }
