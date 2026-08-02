@@ -6,9 +6,9 @@ import { Resend } from "resend"
  * Resend es un servicio alojado: no corre nada en el VPS. Requiere que el
  * dominio remitente esté verificado con registros DNS (DKIM + SPF).
  *
- * Los tres correos de la app son la única vía de acceso al producto —
- * la invitación es el único camino de alta (RF-005) — así que aquí ningún
- * fallo puede pasar en silencio. Ver `ResultadoEnvio`.
+ * Los correos de la app son la única vía de acceso al producto —la invitación
+ * es el único camino de alta (RF-001, RF-002)— así que aquí ningún fallo
+ * puede pasar en silencio. Ver `ResultadoEnvio`.
  */
 
 /**
@@ -237,7 +237,7 @@ export async function enviarRecordatorioCheckin(
 }
 
 /**
- * Avisa al admin que alguien se registró y espera aprobación manual (RF-006).
+ * Avisa al admin que alguien se registró y espera aprobación manual (RF-003).
  * Sin este correo el usuario queda en estado `pendiente` sin que nadie lo sepa.
  */
 export async function enviarNotificacionAdmin(

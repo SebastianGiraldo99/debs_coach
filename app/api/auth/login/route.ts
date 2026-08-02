@@ -6,7 +6,8 @@ import { crearSession } from "@/lib/auth/session"
 import { prisma } from "@/lib/db/prisma"
 
 /**
- * POST /api/auth/login — RF-001.
+ * POST /api/auth/login — RF-004: solo los usuarios aprobados pueden iniciar
+ * sesión.
  *
  * Valida credenciales, exige estado `activo` y abre la sesión JWT.
  */

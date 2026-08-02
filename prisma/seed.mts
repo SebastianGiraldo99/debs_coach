@@ -5,7 +5,7 @@ import { prisma } from "../lib/db/prisma.ts"
 
 /**
  * Crea el administrador inicial. Es el único usuario que nace sin invitación:
- * a partir de él se invita a todos los demás (RF-005).
+ * a partir de él se invita a todos los demás (RF-001).
  *
  * Idempotente — `prisma db seed` puede correr varias veces. Si el admin ya
  * existe NO se le pisa la contraseña: sería un rollback silencioso de
