@@ -8,7 +8,12 @@ export default defineConfig({
   migrations: {
     path: "prisma/migrations",
     // Node 24 hace type stripping nativo: no necesita tsx ni compilación.
-    seed: "node prisma/seed.mts",
+    //
+    // El --disable-warning silencia MODULE_TYPELESS_PACKAGE_JSON, que Node
+    // emite al importar los .ts de lib/ porque el package.json no declara
+    // "type". Son cinco líneas de ruido que enterraban los mensajes reales
+    // del seed. Se desactiva solo ese aviso, no todos.
+    seed: "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON prisma/seed.mts",
   },
   datasource: {
     url: process.env["DATABASE_URL"],
