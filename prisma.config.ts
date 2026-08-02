@@ -7,6 +7,8 @@ export default defineConfig({
   schema: "prisma/schema.prisma",
   migrations: {
     path: "prisma/migrations",
+    // Node 24 hace type stripping nativo: no necesita tsx ni compilación.
+    seed: "node prisma/seed.mts",
   },
   datasource: {
     url: process.env["DATABASE_URL"],
