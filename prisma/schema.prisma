@@ -106,6 +106,19 @@ model Usuario {
   /// denominación de todos sus montos y también cómo se los mostramos.
   monedaBase    Moneda        @default(COP) @map("moneda_base")
 
+  /// Cuándo terminó el onboarding. `null` = todavía no lo ha completado.
+  ///
+  /// Existe para separar dos cosas que la ETR llama igual: `estado` es
+  /// control de ACCESO y lo decide el admin (RF-004, RF-005), mientras que
+  /// RF-007 define "activo" como haber completado el onboarding, que es
+  /// PROGRESO del usuario. Son conceptos distintos y ahora tienen campos
+  /// distintos.
+  ///
+  /// Se guarda la fecha y no un booleano: `!= null` da el booleano igual, y
+  /// además queda el cuándo, que el Motor IA usa como origen de la línea de
+  /// tiempo del usuario.
+  onboardingCompletadoEn DateTime? @map("onboarding_completado_en")
+
   objetivos      Objetivo[]
   deudas         Deuda[]
   ingresos       Ingreso[]

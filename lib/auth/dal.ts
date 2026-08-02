@@ -25,6 +25,8 @@ export type UsuarioSesion = {
   email: string
   rol: "usuario" | "admin"
   monedaBase: "COP" | "USD"
+  /** `null` mientras no haya terminado el onboarding. */
+  onboardingCompletadoEn: Date | null
 }
 
 /**
@@ -44,6 +46,7 @@ export const usuarioActual = cache(async (): Promise<UsuarioSesion | null> => {
       rol: true,
       estado: true,
       monedaBase: true,
+      onboardingCompletadoEn: true,
     },
   })
 
@@ -56,6 +59,7 @@ export const usuarioActual = cache(async (): Promise<UsuarioSesion | null> => {
     email: usuario.email,
     rol: usuario.rol,
     monedaBase: usuario.monedaBase,
+    onboardingCompletadoEn: usuario.onboardingCompletadoEn,
   }
 })
 
@@ -82,14 +86,14 @@ export async function requerirAdmin(): Promise<UsuarioSesion> {
  *
  * Esta comprobación no puede vivir en el proxy porque necesita consultar la
  * base, y la doc de Next lo desaconseja explícitamente.
+ *
+ * Antes se deducía contando objetivos, lo que costaba una consulta extra y
+ * confundía dos cosas: tener un objetivo no es lo mismo que haber terminado
+ * el onboarding —también se recogen ingresos, egresos y deudas—. Ahora lo
+ * dice `onboardingCompletadoEn`, que ya viene en la consulta del usuario.
  */
 export async function requerirOnboardingCompleto(): Promise<UsuarioSesion> {
   const usuario = await requerirUsuario()
-
-  const objetivos = await prisma.objetivo.count({
-    where: { usuarioId: usuario.id },
-  })
-  if (objetivos === 0) redirect("/onboarding")
-
+  if (!usuario.onboardingCompletadoEn) redirect("/onboarding")
   return usuario
 }
