@@ -1,21 +1,57 @@
 "use client"
 
 import Link from "next/link"
-import { useRouter } from "next/navigation"
-import { useState } from "react"
+import { useRouter, useSearchParams } from "next/navigation"
+import { Suspense, useState } from "react"
 
 import { Button } from "@/components/ui/button"
 import { Campo } from "@/components/ui/campo"
 
-export default function LoginPage() {
+/** El proxy y el DAL redirigen aquí con ?error= cuando niegan el paso. */
+const MENSAJES_REDIRECCION: Record<string, string> = {
+  acceso:
+    "Tu sesión no es válida o tu cuenta ya no está activa. Vuelve a entrar.",
+}
+
+function FormularioLogin() {
   const router = useRouter()
+  const parametros = useSearchParams()
+
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
+  const [enviando, setEnviando] = useState(false)
+  const [error, setError] = useState<string | null>(
+    MENSAJES_REDIRECCION[parametros.get("error") ?? ""] ?? null,
+  )
 
-  const entrar = (e: React.FormEvent) => {
+  async function entrar(e: React.FormEvent) {
     e.preventDefault()
-    // TODO: conectar API. En el MVP solo navega al dashboard.
-    router.push("/dashboard")
+    setError(null)
+    setEnviando(true)
+
+    try {
+      const respuesta = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      })
+
+      const datos = await respuesta.json()
+
+      if (!datos.ok) {
+        setError(datos.mensaje ?? "No pudimos entrar. Intenta otra vez.")
+        return
+      }
+
+      // refresh() antes de push(): la cookie de sesión acaba de cambiar y sin
+      // esto el proxy decidiría con el caché del router, rebotando al login.
+      router.refresh()
+      router.push(datos.destino)
+    } catch {
+      setError("No pudimos conectar con el servidor. Revisa tu conexión.")
+    } finally {
+      setEnviando(false)
+    }
   }
 
   return (
@@ -25,7 +61,7 @@ export default function LoginPage() {
         <p className="mt-1 text-cuerpo text-ink-soft">Entra para ver tu siguiente paso.</p>
       </div>
 
-      <form onSubmit={entrar} className="flex flex-col gap-5">
+      <form onSubmit={entrar} className="flex flex-col gap-5" noValidate>
         <Campo
           etiqueta="Correo"
           type="email"
@@ -33,6 +69,7 @@ export default function LoginPage() {
           placeholder="Ej: camila@correo.com"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
+          required
         />
         <Campo
           etiqueta="Contraseña"
@@ -40,9 +77,17 @@ export default function LoginPage() {
           autoComplete="current-password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
+          required
         />
-        <Button type="submit" className="w-full">
-          Entrar
+
+        {error && (
+          <p role="alert" className="text-menor text-deuda">
+            {error}
+          </p>
+        )}
+
+        <Button type="submit" className="w-full" disabled={enviando}>
+          {enviando ? "Entrando…" : "Entrar"}
         </Button>
       </form>
 
@@ -53,5 +98,15 @@ export default function LoginPage() {
         </Link>
       </p>
     </div>
+  )
+}
+
+export default function LoginPage() {
+  // useSearchParams obliga a un límite de Suspense para no forzar el render
+  // dinámico de toda la ruta.
+  return (
+    <Suspense>
+      <FormularioLogin />
+    </Suspense>
   )
 }
