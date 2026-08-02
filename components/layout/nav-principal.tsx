@@ -1,10 +1,47 @@
 "use client"
 
 import Link from "next/link"
-import { usePathname } from "next/navigation"
+import { usePathname, useRouter } from "next/navigation"
 import { LogOut } from "lucide-react"
+import { useState } from "react"
 
 import { cn } from "@/lib/utils"
+
+/**
+ * Antes era un <Link href="/login"> que no cerraba nada: la cookie seguía
+ * viva, así que el proxy devolvía al usuario a su panel de inmediato y
+ * "Salir" no hacía nada visible.
+ */
+function BotonSalir() {
+  const router = useRouter()
+  const [saliendo, setSaliendo] = useState(false)
+
+  async function salir() {
+    setSaliendo(true)
+    try {
+      await fetch("/api/auth/logout", { method: "POST" })
+    } catch {
+      // Da igual: si la petición no llegó, la sesión sigue y el proxy nos
+      // devolverá al panel. No hay estado a medias que reparar.
+    }
+    // refresh() limpia el caché del router, que si no conservaría las
+    // páginas privadas ya renderizadas.
+    router.refresh()
+    router.push("/login")
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={salir}
+      disabled={saliendo}
+      className="flex shrink-0 items-center gap-1.5 text-menor text-ink-soft transition-colors hover:text-ink disabled:opacity-60"
+    >
+      <LogOut className="size-4" />
+      <span>{saliendo ? "Saliendo…" : "Salir"}</span>
+    </button>
+  )
+}
 
 const enlaces = [
   { href: "/dashboard", texto: "Inicio" },
@@ -52,13 +89,7 @@ export function NavPrincipal({ variante = "usuario" }: { variante?: "usuario" | 
 
         {variante === "admin" && <span className="flex-1 text-menor text-ink-mute">Administración</span>}
 
-        <Link
-          href="/login"
-          className="flex shrink-0 items-center gap-1.5 text-menor text-ink-soft hover:text-ink"
-        >
-          <LogOut className="size-4" />
-          <span>Salir</span>
-        </Link>
+        <BotonSalir />
       </div>
     </header>
   )
