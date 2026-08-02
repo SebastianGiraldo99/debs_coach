@@ -10,6 +10,9 @@
     "module": "esnext",
     "moduleResolution": "bundler",
     "resolveJsonModule": true,
+    // Los scripts de scripts/ corren con Node puro, y ESM exige la extensión
+    // explícita en el import. Seguro porque noEmit está activo.
+    "allowImportingTsExtensions": true,
     "isolatedModules": true,
     "jsx": "react-jsx",
     "incremental": true,
