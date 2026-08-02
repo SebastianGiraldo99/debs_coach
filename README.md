@@ -1,5 +1,17 @@
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
+## Documentación
+
+Vive en [`docs/`](docs/):
+
+| Documento | Qué contiene |
+|---|---|
+| [`ESPECIFICACION_TECNICA.md`](docs/ESPECIFICACION_TECNICA.md) | ETR — qué hace la app. Fuente de verdad de RF/RNF y criterios de aceptación |
+| [`DIRECTRICES_DISENO.md`](docs/DIRECTRICES_DISENO.md) | Cómo se ve y se siente: tokens, formularios, dashboard, tono de voz |
+| [`plan.md`](docs/plan.md) | En qué orden se construye — 8 sprints y estado actual |
+
+`AGENTS.md` y `CLAUDE.md` se quedan en la raíz: no son documentación sino instrucciones que las herramientas de IA cargan desde ahí.
+
 ## Getting Started
 
 First, run the development server:

@@ -11,6 +11,48 @@ Se cuenta con la **ETR completa** (`ESPECIFICACION_TECNICA.md`) y el **andamiaje
 - Estructura completa de carpetas (rutas y APIs vacías esperando implementación)
 - `.env.example` y `.env` creados (pendientes valores reales)
 
+### Capa visual — mockup de validación (2026-07-30)
+
+Existe además un **MVP visual completo y navegable**, portado desde el repo privado `SebastianGiraldo99/coach-financiero` (prototipo generado con v0 a partir de `DIRECTRICES_DISENO.md`).
+
+> ⚠️ **Este código es un mockup de prueba, no la implementación final.** No tiene backend, ni validación real, ni persistencia: renderiza datos falsos desde `lib/mock/` y los formularios no guardan nada. **Pero el diseño que expresa sí es la base sobre la que se debe trabajar de aquí en adelante** — no se rehace, se conecta.
+
+Qué entró (49 archivos, ~2.900 líneas): las 14 pantallas de la ETR, `components/ui|forms|layout|dashboard|graficas|estados|checkin`, `lib/utils.ts`, `lib/formato.ts` y `lib/mock/`. Cero dependencias nuevas. `npm run lint` y `npm run build` pasan.
+
+Cómo usarlo en los sprints siguientes:
+
+- **`lib/mock/` es el contrato.** Sus objetos replican los campos y enums de `schema.prisma`, así que conectar cada pantalla es sustituir el import por la consulta real, no reescribir la vista.
+- **Los formularios ya están maquetados** con estado local de React; falta añadirles Zod, server actions y manejo de errores. Cada handler tiene un `// TODO: conectar API`.
+- **`app/(dashboard)/estilo/`** es una página de desarrollo con la paleta y todos los componentes. Se elimina antes de producción.
+- **Los tokens de `app/globals.css` son la única fuente de color y tipografía.** Ningún componente lleva hexadecimales; mantener esa regla.
+- **`/dashboard?estado=vacio|cargando|error`** renderiza los estados de sistema para revisarlos sin provocarlos.
+
+Pendientes conocidos de esta capa (ver también `DIRECTRICES_DISENO.md` §22):
+
+1. `/checkin` es un formulario de un solo campo, **no** el flujo de 3 pasos que exige RF-029 (pagos, deudas nuevas, ingresos extra). Hay que rehacerlo en el Sprint 5.
+2. El dashboard rotula la intención como `Trabajando en: "..."`; `DIRECTRICES_DISENO.md` §6.1 pide `Tu intención: "..."` con saludo. Falta decidir cuál gana y alinear código y documento.
+3. `proyeccion-plegable.tsx` importa Recharts estáticamente: la librería entra en el chunk del dashboard aunque las gráficas nunca se rendericen. Candidato a `next/dynamic` al optimizar.
+4. Sin verificar en navegador: ausencia de scroll horizontal a 375px, longitud de línea a 1280px y recorrido completo con teclado.
+
+Durante el port se corrigieron dos errores de tipos preexistentes que impedían compilar: `SessionPayload` ahora extiende `JWTPayload` en `lib/auth/session.ts`, y se eliminó el import inexistente de `Decimal` en `lib/ia/prompts.ts`.
+
+### Multi-moneda — preparado, sin activar (2026-07-30)
+
+El schema y la capa de formato ya soportan **COP y USD**; el MVP sale **sin tasas de cambio**. Se hizo ahora porque `prisma/` aún no tiene migraciones: agregar la columna `moneda` después obligaría a adivinar, para cada monto histórico, si era pesos o dólares — un dato irrecuperable.
+
+Ya está hecho:
+- `enum Moneda { COP, USD }` y campo `moneda` en `Deuda`, `Ingreso`, `Egreso`, `IngresoExtra`; `Usuario.monedaBase`; `tasaCopUsada` en `CheckIn` y `Evento`; tabla `TasaCambio` (creada, **sin uso** hasta que se integre la fuente).
+- `lib/formato.ts` recibe la moneda en todas sus funciones (default `COP`) y `CampoMoneda` acepta `moneda`, con prefijo, decimales, `inputMode` y separadores correctos por moneda.
+- La bienvenida del onboarding pregunta la moneda base.
+
+**Regla del MVP: no se mezclan monedas.** Sin tasa no se puede sumar un ingreso en USD con una deuda en COP, así que todos los montos de un usuario comparten su `monedaBase`. El schema ya permite la mezcla; solo falta la conversión.
+
+Pendiente para la actualización posterior:
+1. Elegir la fuente de tasas — se recomienda la **TRM** de la Superfinanciera, no una API genérica de FX (la mid-market no coincide con lo que el usuario ve en su banco). Cachear una vez al día con `node-cron`.
+2. Poblar `TasaCambio` y activar la conversión en `lib/formato.ts`, congelando `tasaCopUsada` en cada snapshot.
+3. Añadir `moneda` y un indicador de **exposición cambiaria** al contexto JSON del Motor IA (RF-036): quien gana en COP y debe en USD carga riesgo de devaluación, y el plan debería tenerlo en cuenta.
+4. **La prosa que genera la IA lleva el símbolo de moneda incrustado en el texto** (`"Abona $ 850.000 a la tarjeta Visa"`). Formatear en el front no basta: hay que instruir al modelo en `lib/ia/prompts.ts` para que redacte en la moneda del usuario.
+
 **Decisiones confirmadas:**
 - Scope = **Desarrollo + deployment + scripts utilitarios** (backup, seed, logs)
 - Hashing de contraseñas = **argon2**
@@ -24,10 +66,12 @@ El plan se organiza en 8 sprints alineados al roadmap de 15 días del ETR.
 
 Cierra el setup técnico antes de empezar a codear features.
 
+> **Ya resuelto por el mockup visual:** las tareas 2, 3 y la parte de maquetado/metadata de la 5. `lib/utils.ts` existe, `components/ui/` tiene los 6 componentes base más `textarea`, `badge`, `campo` y `campo-moneda`, y `app/layout.tsx` ya lleva `title: "Coach Financiero"`. De la tarea 5 queda pendiente **solo la lógica de redirección por sesión**.
+
 **Tareas:**
 1. Instalar dependencias faltantes: `argon2`, `tsx` (para correr scripts TS).
-2. Crear `lib/utils.ts` con helper `cn()` (clsx + tailwind-merge) para shadcn/ui.
-3. Inicializar shadcn/ui de forma manual (no usar el CLI — los primitives ya están instalados): crear componentes base en `components/ui/`: `button.tsx`, `input.tsx`, `label.tsx`, `card.tsx`, `dialog.tsx`, `select.tsx`.
+2. ~~Crear `lib/utils.ts` con helper `cn()`~~ — hecho.
+3. ~~Componentes base en `components/ui/`~~ — hecho (ver nota arriba).
 4. Crear `middleware.ts` en la raíz con la lógica de redirección por rol/estado:
    - Sin sesión → `/login`
    - Sesión + estado `pendiente` o `bloqueado` → `/login?error=acceso`
@@ -237,11 +281,11 @@ Cierre y puesta en producción.
 2. **`scripts/restore-db.sh`** → recibe path al `.sql.gz` y restaura.
 3. **`scripts/limpiar-invitaciones.ts`** → marca como `expirado` las invitaciones vencidas. Correr semanalmente.
 4. **Logs:** configurar PM2 con `pm2 install pm2-logrotate`, rotación diaria, retención 14 días. Documentar en `README.md` cómo ver logs (`pm2 logs coach-financiero`).
-5. **Documentación de operación** en `OPERACIONES.md`: cómo deployar updates, cómo restaurar backup, cómo agregar el primer admin, cómo monitorear.
+5. **Documentación de operación** en `docs/OPERACIONES.md`: cómo deployar updates, cómo restaurar backup, cómo agregar el primer admin, cómo monitorear.
 
 **Archivos creados:**
 - `ecosystem.config.js`, `scripts/{backup-db.sh,restore-db.sh,limpiar-invitaciones.ts}`
-- `OPERACIONES.md`
+- `docs/OPERACIONES.md`
 - Config externa al repo: `/etc/nginx/sites-available/coach-financiero.conf` (template versionado en `deployment/nginx.conf.example`)
 
 ---
@@ -277,5 +321,5 @@ El MVP se valida ejecutando este script manual completo en orden:
 10. Como admin: bloquear usuario → usuario no puede loguearse.
 11. Auditoría IDOR: con `curl` desde una sesión de usuario A, atacar endpoints intentando acceder a datos de usuario B → todas las respuestas 403/404.
 12. Probar build de prod: `npm run build && npm start` localmente sin errores.
-13. Deploy al VPS siguiendo `OPERACIONES.md` → repetir checklist 1-10 contra `https://tudominio.com`.
+13. Deploy al VPS siguiendo `docs/OPERACIONES.md` → repetir checklist 1-10 contra `https://tudominio.com`.
 14. Validar backup automático: día siguiente revisar `/var/backups/coach/` tiene el dump.
