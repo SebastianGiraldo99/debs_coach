@@ -1,88 +1,50 @@
-"use client"
-
 import Link from "next/link"
-import { useRouter } from "next/navigation"
-import { useState } from "react"
 
-import { Button } from "@/components/ui/button"
-import { Campo } from "@/components/ui/campo"
+import { FormularioRegistro } from "@/components/auth/formulario-registro"
+import { buscarInvitacionVigente } from "@/lib/auth/invitaciones"
 
-export default function RegisterPage() {
-  const router = useRouter()
-  const [nombre, setNombre] = useState("")
-  const [email, setEmail] = useState("")
-  const [password, setPassword] = useState("")
-  const [confirmacion, setConfirmacion] = useState("")
-  const [errorConfirmacion, setErrorConfirmacion] = useState<string | undefined>()
+/**
+ * /register?token=… — RF-002.
+ *
+ * Server Component a propósito: el token se valida en el servidor ANTES de
+ * pintar nada. Si se validara en el cliente habría que exponer un endpoint
+ * que confirma si un token existe, y eso permitiría probar tokens a ciegas.
+ *
+ * En Next 16 `searchParams` es una promesa.
+ */
+export default async function RegisterPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ token?: string }>
+}) {
+  const { token } = await searchParams
+  const invitacion = token ? await buscarInvitacionVigente(token) : null
 
-  const crear = (e: React.FormEvent) => {
-    e.preventDefault()
-    // Validación visual simulada al enviar (§3): sin persistencia real.
-    if (confirmacion && confirmacion !== password) {
-      setErrorConfirmacion("Las contraseñas no coinciden")
-      return
-    }
-    // TODO: conectar API. En el MVP navega al onboarding.
-    router.push("/onboarding")
+  if (!invitacion) {
+    return (
+      <div className="flex flex-col gap-6">
+        <div>
+          <h1 className="text-titulo font-semibold text-ink">
+            Esta invitación no sirve
+          </h1>
+          <p className="mt-1 text-cuerpo text-ink-soft">
+            {token
+              ? "El enlace ya venció o alguien lo usó. Los enlaces duran 48 horas."
+              : "Te falta el enlace de invitación. Ábrelo desde el correo que recibiste."}
+          </p>
+          <p className="mt-3 text-cuerpo text-ink-soft">
+            Pídele al administrador que te envíe uno nuevo.
+          </p>
+        </div>
+        <p className="text-menor text-ink-soft">
+          ¿Ya tienes cuenta?{" "}
+          <Link href="/login" className="text-primary hover:text-primary-hover">
+            Entrar
+          </Link>
+        </p>
+      </div>
+    )
   }
 
-  return (
-    <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="text-titulo font-semibold text-ink">Crea tu cuenta</h1>
-        <p className="mt-1 text-cuerpo text-ink-soft">Toma menos de un minuto.</p>
-      </div>
-
-      <form onSubmit={crear} className="flex flex-col gap-5">
-        <Campo
-          etiqueta="¿Cómo te llamas?"
-          autoComplete="name"
-          placeholder="Ej: Camila"
-          value={nombre}
-          onChange={(e) => setNombre(e.target.value)}
-        />
-        <Campo
-          etiqueta="Correo"
-          type="email"
-          autoComplete="email"
-          placeholder="Ej: camila@correo.com"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-        />
-        <Campo
-          etiqueta="Contraseña"
-          type="password"
-          autoComplete="new-password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-        />
-        <Campo
-          etiqueta="Repite la contraseña"
-          type="password"
-          autoComplete="new-password"
-          error={errorConfirmacion}
-          value={confirmacion}
-          onChange={(e) => {
-            setConfirmacion(e.target.value)
-            if (errorConfirmacion) setErrorConfirmacion(undefined)
-          }}
-          onBlur={() => {
-            if (confirmacion && confirmacion !== password) {
-              setErrorConfirmacion("Las contraseñas no coinciden")
-            }
-          }}
-        />
-        <Button type="submit" className="w-full">
-          Crear cuenta
-        </Button>
-      </form>
-
-      <p className="text-menor text-ink-soft">
-        ¿Ya tienes cuenta?{" "}
-        <Link href="/login" className="text-primary hover:text-primary-hover">
-          Entrar
-        </Link>
-      </p>
-    </div>
-  )
+  return <FormularioRegistro token={token!} email={invitacion.emailDestino} />
 }
