@@ -32,6 +32,11 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+!.env.example
+
+# claude code — settings.json es política compartida del proyecto;
+# settings.local.json es específico de cada máquina
+.claude/settings.local.json
 
 # vercel
 .vercel
