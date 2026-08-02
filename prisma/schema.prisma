@@ -8,6 +8,17 @@ datasource db {
 
 // ─── Enums ────────────────────────────────────────────────────────────────────
 
+/// Moneda de denominación de un monto: la moneda en la que el instrumento
+/// realmente existe, no la que el usuario prefiere ver. Un monto se guarda
+/// SIEMPRE en su moneda de denominación y nunca se reescribe convertido.
+/// En el MVP todos los montos de un usuario comparten su `monedaBase`; la
+/// mezcla de monedas requiere tasas de cambio y llega en una actualización
+/// posterior. Ver docs/DIRECTRICES_DISENO.md §14.
+enum Moneda {
+  COP
+  USD
+}
+
 enum RolUsuario {
   usuario
   admin
@@ -91,6 +102,10 @@ model Usuario {
   ultimoAcceso  DateTime?     @map("ultimo_acceso")
   createdAt     DateTime      @default(now()) @map("created_at")
 
+  /// Moneda en la que el usuario maneja su dinero. En el MVP determina la
+  /// denominación de todos sus montos y también cómo se los mostramos.
+  monedaBase    Moneda        @default(COP) @map("moneda_base")
+
   objetivos      Objetivo[]
   deudas         Deuda[]
   ingresos       Ingreso[]
@@ -122,6 +137,7 @@ model Deuda {
   tipo           TipoDeuda
   montoOriginal  Decimal     @map("monto_original") @db.Decimal(15, 2)
   montoActual    Decimal     @map("monto_actual") @db.Decimal(15, 2)
+  moneda         Moneda      @default(COP)
   tasaInteres    Decimal?    @map("tasa_interes") @db.Decimal(5, 2)
   estado         EstadoDeuda @default(activa)
   createdAt      DateTime    @default(now()) @map("created_at")
@@ -136,6 +152,7 @@ model Ingreso {
   usuarioId     String           @map("usuario_id")
   categoria     CategoriaIngreso
   montoMensual  Decimal          @map("monto_mensual") @db.Decimal(15, 2)
+  moneda        Moneda           @default(COP)
   createdAt     DateTime         @default(now()) @map("created_at")
 
   usuario Usuario @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
@@ -148,6 +165,7 @@ model Egreso {
   usuarioId     String          @map("usuario_id")
   categoria     CategoriaEgreso
   montoMensual  Decimal         @map("monto_mensual") @db.Decimal(15, 2)
+  moneda        Moneda          @default(COP)
   createdAt     DateTime        @default(now()) @map("created_at")
 
   usuario Usuario @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
@@ -159,6 +177,7 @@ model IngresoExtra {
   id          String   @id @default(uuid())
   usuarioId   String   @map("usuario_id")
   monto       Decimal  @db.Decimal(15, 2)
+  moneda      Moneda   @default(COP)
   descripcion String
   fecha       DateTime @db.Date
   createdAt   DateTime @default(now()) @map("created_at")
@@ -177,6 +196,11 @@ model CheckIn {
   respuestaIa      String   @map("respuesta_ia")
   planGenerado     Json     @map("plan_generado")
   createdAt        DateTime @default(now()) @map("created_at")
+
+  /// Tasa (COP por 1 unidad de moneda extranjera) con la que se calculó este
+  /// snapshot. Congelarla evita que un check-in pasado muestre cifras
+  /// distintas cada vez que se abre. Null mientras no haya conversión.
+  tasaCopUsada     Decimal? @map("tasa_cop_usada") @db.Decimal(15, 6)
 
   usuario Usuario @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
 
@@ -203,9 +227,27 @@ model Evento {
   progresoPct  Decimal?   @map("progreso_pct") @db.Decimal(5, 2)
   createdAt    DateTime   @default(now()) @map("created_at")
 
+  /// Tasa congelada en el momento del evento. Ver CheckIn.tasaCopUsada.
+  tasaCopUsada Decimal?   @map("tasa_cop_usada") @db.Decimal(15, 6)
+
   usuario Usuario @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
 
   @@map("eventos")
+}
+
+/// Tasas de cambio diarias. SIN USO EN EL MVP — se puebla cuando se integre la
+/// fuente de tasas (para COP, la TRM de la Superfinanciera). Una fila por
+/// moneda y día; `valorCop` es cuántos COP vale 1 unidad de `moneda`.
+model TasaCambio {
+  id        String   @id @default(uuid())
+  moneda    Moneda
+  fecha     DateTime @db.Date
+  valorCop  Decimal  @map("valor_cop") @db.Decimal(15, 6)
+  fuente    String
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@unique([moneda, fecha])
+  @@map("tasas_cambio")
 }
 
 model Invitacion {
