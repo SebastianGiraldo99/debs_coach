@@ -4,7 +4,7 @@ import { Campo } from "@/components/ui/campo"
 import { CampoMoneda } from "@/components/ui/campo-moneda"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { etiquetasTipoDeuda, type TipoDeuda } from "@/lib/mock/deudas"
+import { etiquetasTipoDeuda, tiposDeuda, type TipoDeuda } from "@/lib/finanzas/etiquetas"
 
 export type FilaDeudaValor = {
   nombre: string
@@ -43,7 +43,7 @@ export function FilaDeuda({
             <SelectValue placeholder="Elige un tipo" />
           </SelectTrigger>
           <SelectContent>
-            {(Object.keys(etiquetasTipoDeuda) as TipoDeuda[]).map((clave) => (
+            {tiposDeuda.map((clave) => (
               <SelectItem key={clave} value={clave}>
                 {etiquetasTipoDeuda[clave]}
               </SelectItem>

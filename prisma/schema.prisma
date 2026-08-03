@@ -32,9 +32,10 @@ enum EstadoUsuario {
 
 enum TipoDeuda {
   tarjeta_credito
-  credito
-  hipoteca
-  terceros
+  credito_vehiculo
+  credito_libre
+  credito_hipotecario
+  familiar
   otro
 }
 
@@ -45,18 +46,23 @@ enum EstadoDeuda {
 
 enum CategoriaIngreso {
   salario
-  arriendo
+  independiente
   negocio
-  intereses
+  arriendo
+  pension
   otro
 }
 
 enum CategoriaEgreso {
+  /// Va primero porque la fórmula central de la ETR lo separa del resto:
+  /// Ingresos − Egresos (impuestos + supervivencia) = capacidad real.
   impuestos
+  arriendo
+  servicios
   mercado
-  recibos
+  transporte
+  salud
   colegiaturas
-  hijos
   otro
 }
 
@@ -147,11 +153,25 @@ model Objetivo {
 model Deuda {
   id             String      @id @default(uuid())
   usuarioId      String      @map("usuario_id")
+
+  /// Como el usuario reconoce la deuda: "Tarjeta Visa", "Préstamo de mamá".
+  ///
+  /// No es cosmético. El plan de la IA es prosa accionable —"Abona $850.000 a
+  /// la Tarjeta Visa"— y sin nombre solo podría decir "a tu tarjeta de
+  /// crédito", que es inservible si hay dos.
+  nombre         String
+
   tipo           TipoDeuda
   montoOriginal  Decimal     @map("monto_original") @db.Decimal(15, 2)
   montoActual    Decimal     @map("monto_actual") @db.Decimal(15, 2)
   moneda         Moneda      @default(COP)
   tasaInteres    Decimal?    @map("tasa_interes") @db.Decimal(5, 2)
+
+  /// Cuota mínima mensual. Opcional: mucha gente no la tiene a la mano, y
+  /// exigirla frenaría el onboarding. Cuando existe, acota lo que el plan
+  /// puede proponer: por debajo del mínimo la deuda crece.
+  pagoMinimo     Decimal?    @map("pago_minimo") @db.Decimal(15, 2)
+
   estado         EstadoDeuda @default(activa)
   createdAt      DateTime    @default(now()) @map("created_at")
 
@@ -163,6 +183,11 @@ model Deuda {
 model Ingreso {
   id            String           @id @default(uuid())
   usuarioId     String           @map("usuario_id")
+
+  /// Etiqueta del usuario: "Sueldo de Bancolombia". Opcional —la categoría ya
+  /// clasifica— pero permite distinguir dos ingresos de la misma categoría.
+  descripcion   String?
+
   categoria     CategoriaIngreso
   montoMensual  Decimal          @map("monto_mensual") @db.Decimal(15, 2)
   moneda        Moneda           @default(COP)
@@ -176,6 +201,10 @@ model Ingreso {
 model Egreso {
   id            String          @id @default(uuid())
   usuarioId     String          @map("usuario_id")
+
+  /// Etiqueta del usuario: "Arriendo del apartamento". Ver Ingreso.descripcion.
+  descripcion   String?
+
   categoria     CategoriaEgreso
   montoMensual  Decimal         @map("monto_mensual") @db.Decimal(15, 2)
   moneda        Moneda          @default(COP)

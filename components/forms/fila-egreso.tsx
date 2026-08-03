@@ -4,7 +4,7 @@ import { Campo } from "@/components/ui/campo"
 import { CampoMoneda } from "@/components/ui/campo-moneda"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { etiquetasCategoriaEgreso, type CategoriaEgreso } from "@/lib/mock/egresos"
+import { categoriasEgreso, etiquetasCategoriaEgreso, type CategoriaEgreso } from "@/lib/finanzas/etiquetas"
 
 export type FilaEgresoValor = {
   descripcion: string
@@ -44,7 +44,7 @@ export function FilaEgreso({
             <SelectValue placeholder="Elige una categoría" />
           </SelectTrigger>
           <SelectContent>
-            {(Object.keys(etiquetasCategoriaEgreso) as CategoriaEgreso[]).map((clave) => (
+            {categoriasEgreso.map((clave) => (
               <SelectItem key={clave} value={clave}>
                 {etiquetasCategoriaEgreso[clave]}
               </SelectItem>
