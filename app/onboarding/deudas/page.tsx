@@ -4,6 +4,7 @@ import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useState } from "react"
 
+import { enviar } from "@/lib/api-cliente"
 import { Button } from "@/components/ui/button"
 import { PasoFormulario } from "@/components/forms/paso-formulario"
 import { ListaRepetible } from "@/components/forms/lista-repetible"
@@ -14,6 +15,23 @@ export default function OnboardingDeudasPage() {
   const [filas, setFilas] = useState<FilaDeudaValor[]>([filaDeudaVacia()])
 
   const total = filas.reduce((suma, f) => suma + (f.saldo ?? 0), 0)
+
+  const [guardando, setGuardando] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  async function continuar() {
+    setError(null)
+    setGuardando(true)
+    const r = await enviar("/api/deudas", "PUT", {
+      deudas: filas.filter((f) => f.nombre.trim() && f.tipo && f.saldo !== null).map((f) => ({ nombre: f.nombre.trim(), tipo: f.tipo, saldo: f.saldo!, tasaEA: f.tasaEA })),
+    })
+    setGuardando(false)
+    if (!r.ok) {
+      setError(r.mensaje)
+      return
+    }
+    router.push("/onboarding/ingresos")
+  }
 
   const actualizar = (indice: number, valor: FilaDeudaValor) =>
     setFilas((prev) => prev.map((f, i) => (i === indice ? valor : f)))
@@ -29,10 +47,17 @@ export default function OnboardingDeudasPage() {
           <Button variant="ghost" asChild>
             <Link href="/onboarding/intencion">Atrás</Link>
           </Button>
-          <Button onClick={() => router.push("/onboarding/ingresos")}>Continuar</Button>
+          <Button onClick={continuar} disabled={guardando}>
+            {guardando ? "Guardando…" : "Continuar"}
+          </Button>
         </>
       }
     >
+      {error && (
+        <p role="alert" className="mb-4 text-menor text-deuda">
+          {error}
+        </p>
+      )}
       <ListaRepetible
         filas={filas.map((valor, indice) => (
           <FilaDeuda

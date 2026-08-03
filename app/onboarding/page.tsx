@@ -1,8 +1,9 @@
 "use client"
 
-import Link from "next/link"
+import { useRouter } from "next/navigation"
 import * as React from "react"
 
+import { enviar } from "@/lib/api-cliente"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { formatearMoneda, type Moneda } from "@/lib/formato"
@@ -16,7 +17,22 @@ const OPCIONES: { valor: Moneda; nombre: string; ejemplo: number }[] = [
 // en qué moneda está denominado: sin tasas de cambio, todos los montos de una
 // persona comparten moneda y no se pueden mezclar (§14).
 export default function OnboardingPage() {
+  const router = useRouter()
   const [moneda, setMoneda] = React.useState<Moneda>("COP")
+  const [guardando, setGuardando] = React.useState(false)
+  const [error, setError] = React.useState<string | null>(null)
+
+  async function empezar() {
+    setError(null)
+    setGuardando(true)
+    const r = await enviar("/api/usuario", "PATCH", { monedaBase: moneda })
+    setGuardando(false)
+    if (!r.ok) {
+      setError(r.mensaje)
+      return
+    }
+    router.push("/onboarding/intencion")
+  }
 
   return (
     <main className="flex min-h-dvh items-center justify-center px-4 py-10">
@@ -68,10 +84,15 @@ export default function OnboardingPage() {
           </div>
         </fieldset>
 
+        {error && (
+          <p role="alert" className="mt-6 text-menor text-deuda">
+            {error}
+          </p>
+        )}
+
         <div className="mt-8">
-          {/* TODO: conectar API — persistir `moneda` como Usuario.monedaBase. */}
-          <Button asChild>
-            <Link href="/onboarding/intencion">Empezar</Link>
+          <Button onClick={empezar} disabled={guardando}>
+            {guardando ? "Guardando…" : "Empezar"}
           </Button>
         </div>
       </div>

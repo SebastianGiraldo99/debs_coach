@@ -4,6 +4,7 @@ import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useState } from "react"
 
+import { enviar } from "@/lib/api-cliente"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { PasoFormulario } from "@/components/forms/paso-formulario"
@@ -17,9 +18,18 @@ const ejemplos = [
 export default function OnboardingIntencionPage() {
   const router = useRouter()
   const [intencion, setIntencion] = useState("")
+  const [guardando, setGuardando] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
-  const continuar = () => {
-    // TODO: conectar API. En el MVP navega al siguiente paso.
+  async function continuar() {
+    setError(null)
+    setGuardando(true)
+    const r = await enviar("/api/objetivos", "POST", { intencion })
+    setGuardando(false)
+    if (!r.ok) {
+      setError(r.mensaje)
+      return
+    }
     router.push("/onboarding/deudas")
   }
 
@@ -34,13 +44,21 @@ export default function OnboardingIntencionPage() {
           <Button variant="ghost" asChild>
             <Link href="/onboarding">Atrás</Link>
           </Button>
-          <Button onClick={continuar} disabled={intencion.trim().length === 0}>
-            Continuar
+          <Button
+            onClick={continuar}
+            disabled={guardando || intencion.trim().length === 0}
+          >
+            {guardando ? "Guardando…" : "Continuar"}
           </Button>
         </>
       }
     >
       <div className="flex flex-col gap-4">
+        {error && (
+          <p role="alert" className="text-menor text-deuda">
+            {error}
+          </p>
+        )}
         <div className="flex flex-col gap-1.5">
           <label htmlFor="intencion" className="text-menor font-medium text-ink">
             Tu intención
