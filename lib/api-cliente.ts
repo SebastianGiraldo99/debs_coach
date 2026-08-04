@@ -12,7 +12,7 @@ export type Respuesta<T = unknown> =
 
 export async function enviar<T = Record<string, unknown>>(
   url: string,
-  metodo: "POST" | "PUT" | "PATCH",
+  metodo: "POST" | "PUT" | "PATCH" | "DELETE",
   cuerpo?: unknown,
 ): Promise<Respuesta<T>> {
   try {

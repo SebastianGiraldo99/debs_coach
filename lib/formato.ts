@@ -92,6 +92,44 @@ export function formatearFecha(fecha: Date | string, modo: "largo" | "corto" = "
 }
 
 /**
+ * Como `formatearFecha`, pero para fechas SIN hora: las columnas `@db.Date` y
+ * los strings "2026-08-03".
+ *
+ * Prisma devuelve una columna DATE como medianoche UTC, y `new Date("2026-08-03")`
+ * también se interpreta en UTC. Leerlas con `getDate()` —que es hora local— las
+ * corre un día hacia atrás en Colombia (UTC-5): un ingreso registrado el 3 se
+ * mostraría como el 2. Aquí se leen en UTC, que es donde de verdad están.
+ */
+export function formatearFechaUtc(fecha: Date | string, modo: "largo" | "corto" = "largo"): string {
+  const d = typeof fecha === "string" ? new Date(fecha) : fecha
+  const dia = d.getUTCDate()
+  const mes = d.getUTCMonth()
+  const anio = d.getUTCFullYear()
+
+  if (modo === "corto") return `${dia} ${MESES_CORTO[mes]}`
+
+  const base = `${dia} de ${MESES[mes]}`
+  return anio !== new Date().getFullYear() ? `${base} de ${anio}` : base
+}
+
+/**
+ * Etiqueta de mes para el eje de una gráfica: "Ago". Va capitalizada porque
+ * es un rótulo suelto, no parte de una frase.
+ */
+export function formatearMesCorto(fecha: Date): string {
+  const mes = MESES_CORTO[fecha.getMonth()]
+  return mes.charAt(0).toUpperCase() + mes.slice(1)
+}
+
+/**
+ * formatearMesAnio(d) → "septiembre de 2027". Para fechas lejanas, donde el
+ * día no aporta: nadie salda una deuda un martes concreto.
+ */
+export function formatearMesAnio(fecha: Date): string {
+  return `${MESES[fecha.getMonth()]} de ${fecha.getFullYear()}`
+}
+
+/**
  * formatearMeses(11) → "11 meses"; formatearMeses(1) → "1 mes";
  * ≥24 → "2 años y 3 meses".
  */

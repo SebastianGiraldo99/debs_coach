@@ -57,6 +57,25 @@ export const esquemaEgreso = z.object({
 })
 
 /**
+ * Un ingreso extraordinario (RF-019): dinero que no entra todos los meses.
+ *
+ * A diferencia de los ingresos fijos, el monto es estrictamente positivo y la
+ * descripción obligatoria: un ingreso extra de cero y sin nombre no es un
+ * dato, es un formulario enviado sin querer. Además el Motor IA la lee para
+ * escribir el paso —"Abona los $750.000 del freelance"—, y "(sin descripción)"
+ * no da para eso.
+ */
+export const esquemaIngresoExtra = z.object({
+  monto: z
+    .number()
+    .finite()
+    .positive("Escribe cuánto recibiste.")
+    .max(MONTO_MAXIMO),
+  descripcion: z.string().trim().min(1, "Cuéntanos de qué fue.").max(80),
+  fecha: z.iso.date({ error: "Revisa la fecha." }),
+})
+
+/**
  * Las listas admiten estar vacías: no todo el mundo tiene deudas, y bloquear
  * el paso obligaría a inventarse una. El tope de 50 evita que un cliente
  * manipulado meta miles de filas de una sentada.

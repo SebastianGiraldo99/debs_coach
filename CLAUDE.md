@@ -98,6 +98,40 @@ base**, consultado con el `usuarioId` de la sesión (RF-035, RF-036).
   onboarding. Si falla, entra igual al dashboard: dejar a alguien atrapado en
   un formulario ya cerrado es peor que un dashboard sin plan.
 
+## El Dashboard
+
+`lib/dashboard/datos.ts` es la única entrada: una función, todas las consultas
+en paralelo, y las vistas reciben props. Ningún componente de
+`components/dashboard/` consulta la base por su cuenta — así las cifras, la
+gráfica y el plan hablan siempre del mismo momento.
+
+- **Las tres cifras son de hoy; el plan es de cuando se generó.** La capacidad
+  y la deuda se recalculan en cada carga. Las de `plan.cifras` quedaron
+  congeladas y sostienen la prosa del consejo. Cuando se separan más de la
+  tolerancia de `datos.ts`, "Tu plan" añade *"con las cifras que tenías
+  entonces"* en vez de esconder la diferencia.
+- **`proyectarDeuda()` (`lib/finanzas/proyeccion.ts`) alimenta a la vez la
+  cifra "Faltan N meses" y la gráfica.** Calculadas por separado se
+  contradecían. Simula por avalancha, con interés, pagando primero los mínimos.
+  No es el `mesesLibertad` del plan, que viene del modelo y envejece con él.
+- Sin margen mensual **no hay curva**: la gráfica cede el sitio a una frase. Una
+  línea plana a 50 años no es una proyección.
+- **El historial de check-ins sale de `eventos`**, no de `check_ins`:
+  `progresoPct` es una columna hecha para eso. El Sprint 5 debe escribir el
+  evento `check_in` con `progresoPct` y el payload `{ pagado, deudaTotal }` que
+  documenta `lib/checkins/historial.ts`. El parseo es tolerante: un payload
+  distinto deja la lista vacía, no rompe la pantalla.
+- **Editar deudas o ingresos no dispara el Motor IA.** Los tres disparadores
+  están fijados (RF-034) y el CRUD no es uno; el aviso de plan desactualizado
+  es la respuesta a eso. El ingreso extra sí dispara, y por eso vive en
+  `/api/ingresos/extra` y no en el CRUD de `/api/ingresos`.
+- El `POST /api/ingresos/extra` **guarda primero y llama al motor después**, y
+  responde 200 aunque el plan falle (`planActualizado: false`). El dato que
+  reportó la persona es lo único que la app no puede reconstruir.
+- **Las columnas `@db.Date` se formatean con `formatearFechaUtc`.** Prisma las
+  devuelve como medianoche UTC y `formatearFecha` lee la hora local: en
+  Colombia el día se corre uno hacia atrás.
+
 ## Estado por sprint
 
 | Sprint | Estado |
@@ -106,33 +140,30 @@ base**, consultado con el `usuarioId` de la sesión (RF-035, RF-036).
 | 1 — Auth, invitaciones, panel admin | ✅ completo y probado contra la base |
 | 2 — Onboarding | ✅ captura datos reales y marca `onboardingCompletadoEn` |
 | 3 — Motor IA | ✅ genera, valida y persiste el plan; probado contra OpenAI de verdad |
-| 4 — Dashboard | ⬜ **siguiente** |
-| 5 — Check-in y cron | ⬜ |
+| 4 — Dashboard e ingreso extra | ✅ dashboard, deudas e ingresos sobre datos reales; probado end-to-end |
+| 5 — Check-in y cron | ⬜ **siguiente** |
 | 6 — Objetivos | ⬜ |
 | 7 — QA y despliegue | ⬜ |
 
-**12 archivos siguen leyendo `lib/mock/`**: las 5 páginas de `(dashboard)`
-—dashboard, deudas, ingresos, objetivos, checkin— y 7 componentes de
-`components/dashboard|graficas|checkin`. Se conectan en los sprints 4 a 6.
+**3 archivos siguen leyendo `lib/mock/`**: las páginas de `objetivos` y
+`checkin`, y `components/checkin/checkin-formulario.tsx`. Se conectan en los
+sprints 5 y 6. (`lib/finanzas/etiquetas.ts` y `lib/ia/schema.ts` solo lo
+mencionan en comentarios.)
 
 Los mocks son el contrato visual —replican los campos del schema— así que
 conectar una pantalla es **sustituir el import por la consulta real, no rehacer
-la vista**.
-
-`components/forms/` ya está migrado: las etiquetas de los enums viven en
-`lib/finanzas/etiquetas.ts` y se derivan de `@prisma/client`. **No añadas
-dependencias nuevas hacia `lib/mock/`**; al conectar una pantalla, elimina las
-que tenga.
+la vista**. **No añadas dependencias nuevas hacia `lib/mock/`**; al conectar
+una pantalla, elimina el mock que se quede sin consumidores.
 
 Pendientes conocidos:
-- **Nadie lee todavía los planes generados.** `PlanIa.contenido` se escribe
-  desde el Sprint 3; el dashboard lo conecta en el 4 con `leerPlan()` de
-  `lib/ia/schema.ts`, que devuelve `null` en vez de lanzar si el shape no
-  cuadra.
 - Cerrar el onboarding deja **dos eventos `plan_generado`** seguidos: la foto
   inicial que escribe `/api/onboarding/completar` (sin `planIaId`, con las
   cifras de partida) y el plan de verdad. Al pintar el historial hay que
   distinguirlos por el payload.
+- `PlanGuardado.generadoEn` se calcula con `toISOString()`, o sea en UTC:
+  después de las 7 p.m. en Colombia guarda el día siguiente. Hoy nadie lo
+  muestra —el dashboard usa `PlanIa.createdAt`— pero si se pinta, hay que
+  arreglarlo antes.
 - `/checkin` es un formulario de un solo campo, no el flujo de 3 pasos que
   exige RF-029. Se rehace en el Sprint 5.
 - `app/(dashboard)/estilo/` es una página de desarrollo; se elimina antes de
@@ -161,9 +192,12 @@ RESEND_API_KEY= npm run dev
 ```
 
 **Datos de prueba**: usa siempre direcciones `@local.test` (TLD reservado por la
-RFC 2606) y limpia después:
+RFC 2606). Para probar el área de usuario sin pasar por el onboarding a mano,
+siembra una cuenta completa —objetivos, ingresos, egresos y deudas— y límpiala
+después (el `onDelete: Cascade` se lleva todo lo que cuelga):
 
 ```bash
+node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/sembrar-usuario-prueba.mts
 node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/limpiar-datos-prueba.mts
 ```
 

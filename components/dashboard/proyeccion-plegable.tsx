@@ -6,10 +6,21 @@ import { ChevronDown } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { GraficaDeudaTiempo } from "@/components/graficas/grafica-deuda-tiempo"
 import { GraficaProgreso } from "@/components/graficas/grafica-progreso"
+import type { PuntoCheckin } from "@/lib/checkins/historial"
+import type { Proyeccion } from "@/lib/finanzas/proyeccion"
+import type { Moneda } from "@/lib/formato"
 
 // Ver la proyección (§6.5): disclosure cerrado por defecto. Al abrirlo aparecen
 // las dos gráficas. Cerrado es el estado normal.
-export function ProyeccionPlegable() {
+export function ProyeccionPlegable({
+  proyeccion,
+  checkins,
+  moneda,
+}: {
+  proyeccion: Proyeccion
+  checkins: PuntoCheckin[]
+  moneda: Moneda
+}) {
   const [abierto, setAbierto] = useState(false)
 
   return (
@@ -26,8 +37,14 @@ export function ProyeccionPlegable() {
 
       {abierto && (
         <div className="mt-6 flex flex-col gap-8">
-          <GraficaDeudaTiempo />
-          <GraficaProgreso />
+          <GraficaDeudaTiempo
+            puntos={proyeccion.puntos}
+            frase={proyeccion.frase}
+            moneda={moneda}
+          />
+          {/* Devuelve null sin check-ins: una gráfica de una sola barra, o de
+              ninguna, no es información. */}
+          <GraficaProgreso checkins={checkins} moneda={moneda} />
         </div>
       )}
     </section>
