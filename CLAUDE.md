@@ -176,6 +176,51 @@ Para montar el escenario, ver "Datos de prueba" en Flujo de desarrollo. Sin
 `OPENAI_API_KEY` el motor cae a `planLocal()` con las cifras reales, que
 alcanza para probar la pantalla sin gastar tokens.
 
+### Decisiones abiertas — las decide el usuario, no el que implemente
+
+Salieron al leer `docs/plan.md` contra el código real. **No las resuelvas por
+tu cuenta al llegar al sprint**: las tres cambian lo que se construye.
+
+**1. Cómo se dispara el recordatorio quincenal (Sprint 5, RF-028).**
+`docs/plan.md` pide `node-cron` inicializado en `instrumentation.ts`, y la ETR
+lo nombra en su diagrama de arquitectura (§ del diagrama, `node-cron ·
+Recordatorios quincenales`), así que **no es un detalle de implementación: es
+la arquitectura escrita**. El problema es que ese hook corre **una vez por
+proceso**. Si el Sprint 7 arranca PM2 en modo cluster —el plan no dice el
+modo—, el email sale tantas veces como instancias haya. Opciones:
+
+- Dejar `node-cron` y **fijar PM2 en `fork` (una instancia)**. Es lo que menos
+  se aleja de la ETR. Con 11 usuarios máximo, una instancia sobra.
+- Cron del sistema en el VPS golpeando una ruta protegida por secreto. Más
+  fiable y sobrevive a los reinicios de la app, pero se aparta del diagrama.
+
+Lo que **no** vale es dejarlo indefinido y descubrirlo en producción con
+correos duplicados. RF-028 solo exige que el email llegue cada 15 días; el
+cómo es lo que hay que decidir.
+
+**2. Dónde vive Postgres en producción (Sprint 7).** `docs/plan.md` manda
+instalar PostgreSQL local en el VPS y ajustar `pg_hba.conf`. Pero **ya corre
+en Docker en ese VPS** —es contra lo que se desarrolla por el túnel SSH— así
+que el plan describe un servidor que no es el que existe. Antes de desplegar
+hay que decidir si se usa el contenedor que ya está o se levanta otro, y
+rehacer los pasos 2 y 3 del Sprint 7 en consecuencia.
+
+**3. El botón de ingreso extra en móvil (§6.7).** Las directrices lo piden
+**fijo al fondo de la pantalla en móvil** y hoy es una acción del encabezado,
+igual que en el mockup. No se implementó en el Sprint 4 porque cambia el
+layout de dos páginas y no había forma de verificarlo sin navegador. Decidir
+si entra antes del Sprint 5 o se agrupa con el responsive del Sprint 7.
+
+**Aclaración de algo que NO es una duda:** RF-029 fija **tres preguntas**
+—pagos, nuevas deudas, ingresos extra— y el "paso 4" que describe
+`docs/plan.md` es la pantalla de resultado, no una cuarta pregunta. No hay
+contradicción entre ambos documentos; queda escrito para que nadie lo
+"arregle".
+
+Y una trampa de nombres: `docs/plan.md` cita `FormDeudas` y `FormIngresoExtra`,
+que **no existen**. Los componentes reales son `components/forms/fila-deuda.tsx`
+y `components/dashboard/dialogo-ingreso-extra.tsx`. Reusarlos, no rehacerlos.
+
 **3 archivos siguen leyendo `lib/mock/`**: las páginas de `objetivos` y
 `checkin`, y `components/checkin/checkin-formulario.tsx`. Se conectan en los
 sprints 5 y 6. (`lib/finanzas/etiquetas.ts` y `lib/ia/schema.ts` solo lo
