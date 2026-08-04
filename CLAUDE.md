@@ -141,9 +141,40 @@ gráfica y el plan hablan siempre del mismo momento.
 | 2 — Onboarding | ✅ captura datos reales y marca `onboardingCompletadoEn` |
 | 3 — Motor IA | ✅ genera, valida y persiste el plan; probado contra OpenAI de verdad |
 | 4 — Dashboard e ingreso extra | ✅ dashboard, deudas e ingresos sobre datos reales; probado end-to-end |
-| 5 — Check-in y cron | ⬜ **siguiente** |
+| 5 — Check-in y cron | ⬜ **bloqueado hasta la prueba manual de abajo** |
 | 6 — Objetivos | ⬜ |
 | 7 — QA y despliegue | ⬜ |
+
+### Antes del Sprint 5: prueba manual pendiente
+
+**No empieces el check-in sin haber pasado el dashboard por un navegador.** El
+Sprint 4 se verificó end-to-end contra la base y contra OpenAI, pero por HTTP:
+eso cubre el HTML del servidor y las APIs, no lo que solo existe en el
+navegador. El Sprint 5 se apoya en estas piezas, así que un fallo aquí sale
+mucho más caro después.
+
+Lo que **no** está verificado y hay que mirar:
+
+- **Las dos gráficas.** Solo se montan al abrir "Ver proyección de tu deuda".
+  Los datos que reciben sí están comprobados; que Recharts los pinte y que los
+  ejes se lean con el formato de moneda, no.
+- **Los tres diálogos** (ingreso extra, deuda, ingreso fijo): que no se cierren
+  a mitad de la llamada, que los campos queden deshabilitados mientras guardan,
+  que el segundo clic de "Eliminar" funcione y que el error salga donde debe.
+- **Móvil.** Sin tocar. §6.7 pide el botón de ingreso extra **fijo al fondo en
+  móvil** y eso *no está implementado*: quedó como acción del encabezado, igual
+  que en el mockup.
+- El camino "cuenta completa y sin plan" con su botón de reintento, que es lo
+  primero que se ve tras sembrar el usuario de prueba.
+
+Lo que ya está verificado y **no** hace falta repetir: cifras y plan sobre
+datos reales, ingreso extra regenerando el plan con su `planIaId` en el evento
+(RF-021), CRUD de deudas e ingresos, IDOR devolviendo 404, y los límites de
+capacidad negativa y cero deudas.
+
+Para montar el escenario, ver "Datos de prueba" en Flujo de desarrollo. Sin
+`OPENAI_API_KEY` el motor cae a `planLocal()` con las cifras reales, que
+alcanza para probar la pantalla sin gastar tokens.
 
 **3 archivos siguen leyendo `lib/mock/`**: las páginas de `objetivos` y
 `checkin`, y `components/checkin/checkin-formulario.tsx`. Se conectan en los
@@ -200,6 +231,10 @@ después (el `onDelete: Cascade` se lleva todo lo que cuelga):
 node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/sembrar-usuario-prueba.mts
 node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/limpiar-datos-prueba.mts
 ```
+
+La cuenta sembrada es `dashboard@local.test` / `prueba-dashboard-2026`, con el
+onboarding cerrado y **sin plan**: lo primero que se ve es el estado "Todavía
+no tenemos tu plan" con su botón de reintento.
 
 **No puedes leer `.env`** — lo bloquean `.claude/settings.json` y un hook. La
 plantilla documentada es `.env.example`; los valores los pone el usuario. El
