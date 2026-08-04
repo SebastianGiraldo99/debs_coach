@@ -60,6 +60,44 @@ No las confundas:
 **Regla que no se rompe:** el `usuarioId` sale **siempre** de la sesión, nunca
 del cuerpo ni de la URL.
 
+## El Motor IA
+
+Un solo camino de entrada: `generarYGuardarPlan()` en `lib/ia/servicio.ts`.
+`POST /api/ia/generar-plan` es una cáscara sobre esa función; el check-in y el
+ingreso extra la llamarán directamente desde el servidor, sin pasar por HTTP.
+
+El cuerpo del endpoint admite `{ trigger, ingresoExtraId? }` y nada más. Ni un
+campo de texto libre llega al prompt: **todo lo que el modelo lee sale de la
+base**, consultado con el `usuarioId` de la sesión (RF-035, RF-036).
+
+- **El contrato del plan lo manda la pantalla, no `docs/plan.md`.** El plan
+  pide `mensaje_motivacional` / `plan_pagos[]`; lo que se implementó es la
+  forma que ya renderizan `components/dashboard/` sobre `lib/mock/plan.ts`:
+  `siguientePaso`, `pasos[]` (con ids `paso_02`…), `mesesLibertad`, `mensaje`,
+  `alerta`. Vive en `lib/ia/schema.ts`, que es también el validador.
+- **La IA no hace aritmética.** Devuelve prosa accionable. Las cifras duras
+  —capacidad, deuda total, mínimos— salen de `calcularCapacidadReal` y se
+  congelan en `contenido.cifras` del plan: el consejo se dio sobre esos
+  números y releerlos meses después lo volvería incoherente.
+- **`generarPlan()` nunca lanza.** Sin API key, con error del proveedor o con
+  un JSON que no valida, cae a `planLocal()` (`lib/ia/mock.ts`), que calcula
+  un plan por avalancha con los datos reales. Queda marcado `origen: "local"`
+  y el motivo en el payload del evento. Nadie se queda sin plan.
+- **Los logs del motor no llevan cifras ni prosa.** Ante un JSON inválido se
+  loguean las rutas de los campos que fallaron, no sus valores.
+- Timeout de 45 s (`AbortSignal.timeout`) para el total, un reintento y solo
+  ante fallos de transporte: una respuesta malformada no se repregunta.
+- **`temperature` no se manda a todos los modelos.** Los de razonamiento
+  responden `400 … only the default (1) value is supported`. El motor lo
+  aprende del primer 400, reintenta sin el campo y recuerda el modelo en
+  memoria: cambiar `OPENAI_MODEL` no exige tocar código (RF-038). Con
+  `gpt-5.6-luna` la respuesta tarda unos 17 s.
+- Dos planes del mismo trigger en menos de 20 s no se generan dos veces: se
+  devuelve el recién hecho. Es la defensa contra el doble envío.
+- El primer disparo lo hace `app/onboarding/egresos/page.tsx` tras cerrar el
+  onboarding. Si falla, entra igual al dashboard: dejar a alguien atrapado en
+  un formulario ya cerrado es peor que un dashboard sin plan.
+
 ## Estado por sprint
 
 | Sprint | Estado |
@@ -67,8 +105,8 @@ del cuerpo ni de la URL.
 | 0 — Fundaciones | ✅ proxy, DAL, argon2, seed del admin |
 | 1 — Auth, invitaciones, panel admin | ✅ completo y probado contra la base |
 | 2 — Onboarding | ✅ captura datos reales y marca `onboardingCompletadoEn` |
-| 3 — Motor IA | ⬜ **siguiente** |
-| 4 — Dashboard | ⬜ |
+| 3 — Motor IA | ✅ genera, valida y persiste el plan; probado contra OpenAI de verdad |
+| 4 — Dashboard | ⬜ **siguiente** |
 | 5 — Check-in y cron | ⬜ |
 | 6 — Objetivos | ⬜ |
 | 7 — QA y despliegue | ⬜ |
@@ -87,6 +125,14 @@ dependencias nuevas hacia `lib/mock/`**; al conectar una pantalla, elimina las
 que tenga.
 
 Pendientes conocidos:
+- **Nadie lee todavía los planes generados.** `PlanIa.contenido` se escribe
+  desde el Sprint 3; el dashboard lo conecta en el 4 con `leerPlan()` de
+  `lib/ia/schema.ts`, que devuelve `null` en vez de lanzar si el shape no
+  cuadra.
+- Cerrar el onboarding deja **dos eventos `plan_generado`** seguidos: la foto
+  inicial que escribe `/api/onboarding/completar` (sin `planIaId`, con las
+  cifras de partida) y el plan de verdad. Al pintar el historial hay que
+  distinguirlos por el payload.
 - `/checkin` es un formulario de un solo campo, no el flujo de 3 pasos que
   exige RF-029. Se rehace en el Sprint 5.
 - `app/(dashboard)/estilo/` es una página de desarrollo; se elimina antes de
