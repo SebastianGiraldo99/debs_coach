@@ -10,11 +10,16 @@ import { PasoFormulario } from "@/components/forms/paso-formulario"
 import { ListaRepetible } from "@/components/forms/lista-repetible"
 import { FilaEgreso, filaEgresoVacia, type FilaEgresoValor } from "@/components/forms/fila-egreso"
 
+/** En qué punto del cierre estamos. `null` es "todavía editando". */
+type Fase = "guardando" | "generando" | null
+
 export default function OnboardingEgresosPage() {
   const router = useRouter()
   const [filas, setFilas] = useState<FilaEgresoValor[]>([filaEgresoVacia()])
-  const [guardando, setGuardando] = useState(false)
+  const [fase, setFase] = useState<Fase>(null)
   const [error, setError] = useState<string | null>(null)
+
+  const guardando = fase !== null
 
   const total = filas.reduce((suma, f) => suma + (f.monto ?? 0), 0)
 
@@ -22,16 +27,18 @@ export default function OnboardingEgresosPage() {
     setFilas((prev) => prev.map((f, i) => (i === indice ? valor : f)))
 
   /**
-   * Último paso: guarda los egresos y cierra el onboarding.
+   * Último paso: guarda los egresos, cierra el onboarding y pide el primer
+   * plan.
    *
-   * Son dos llamadas y no una porque hacen cosas distintas: la primera
+   * Son tres llamadas y no una porque hacen cosas distintas: la primera
    * persiste datos, la segunda marca `onboardingCompletadoEn` y valida que
-   * haya lo mínimo. Si la segunda falla, los egresos ya quedaron guardados y
-   * el usuario puede reintentar sin volver a escribirlos.
+   * haya lo mínimo, la tercera dispara el Motor IA. Si una falla, las
+   * anteriores ya quedaron hechas y el usuario puede reintentar sin volver a
+   * escribir nada.
    */
   async function terminar() {
     setError(null)
-    setGuardando(true)
+    setFase("guardando")
 
     const guardado = await enviar("/api/egresos", "PUT", {
       egresos: filas
@@ -43,17 +50,28 @@ export default function OnboardingEgresosPage() {
         })),
     })
     if (!guardado.ok) {
-      setGuardando(false)
+      setFase(null)
       setError(guardado.mensaje)
       return
     }
 
     const cierre = await enviar("/api/onboarding/completar", "POST")
-    setGuardando(false)
     if (!cierre.ok) {
+      setFase(null)
       setError(cierre.mensaje)
       return
     }
+
+    // Primer disparo del Motor IA (RF-034). Tarda: el modelo puede irse hasta
+    // los 45 s, y por eso el botón cambia de texto en vez de quedarse mudo.
+    setFase("generando")
+    await enviar("/api/ia/generar-plan", "POST", { trigger: "onboarding" })
+    setFase(null)
+
+    // Si el plan falló igual se entra al dashboard. La cuenta ya está
+    // completa: dejar a la persona atrapada en un formulario cerrado sería
+    // peor que un dashboard sin plan, y el plan se puede reintentar desde
+    // dentro. El motor además cae a un plan local antes de fallar.
 
     // refresh() antes de push(): el layout del dashboard vuelve a leer al
     // usuario y sin esto vería el `onboardingCompletadoEn` viejo, todavía
@@ -74,7 +92,11 @@ export default function OnboardingEgresosPage() {
             <Link href="/onboarding/ingresos">Atrás</Link>
           </Button>
           <Button onClick={terminar} disabled={guardando}>
-            {guardando ? "Guardando…" : "Generar mi plan"}
+            {fase === "generando"
+              ? "Armando tu plan…"
+              : fase === "guardando"
+                ? "Guardando…"
+                : "Generar mi plan"}
           </Button>
         </>
       }
@@ -82,6 +104,11 @@ export default function OnboardingEgresosPage() {
       {error && (
         <p role="alert" className="mb-4 text-menor text-deuda">
           {error}
+        </p>
+      )}
+      {fase === "generando" && (
+        <p aria-live="polite" className="mb-4 text-menor text-ink-soft">
+          Estamos leyendo tus números para armar tu plan. Puede tardar unos segundos.
         </p>
       )}
       <ListaRepetible
