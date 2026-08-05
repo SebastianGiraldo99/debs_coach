@@ -54,7 +54,10 @@ export async function POST(request: Request) {
   if (existente && !guardia.usuario.onboardingCompletadoEn) {
     const actualizado = await prisma.objetivo.update({
       where: { id: existente.id },
-      data: { intencion: datos.data.intencion },
+      data: {
+        intencion: datos.data.intencion,
+        montoObjetivo: datos.data.montoObjetivo ?? null,
+      },
       select: { id: true },
     })
     return NextResponse.json({ ok: true, id: actualizado.id, actualizado: true })
@@ -77,7 +80,12 @@ export async function POST(request: Request) {
   editableDesde.setDate(editableDesde.getDate() + DIAS_COMPROMISO)
 
   const objetivo = await prisma.objetivo.create({
-    data: { usuarioId, intencion: datos.data.intencion, editableDesde },
+    data: {
+      usuarioId,
+      intencion: datos.data.intencion,
+      montoObjetivo: datos.data.montoObjetivo ?? null,
+      editableDesde,
+    },
     select: { id: true },
   })
 
@@ -86,7 +94,11 @@ export async function POST(request: Request) {
     data: {
       usuarioId,
       tipo: "objetivo_creado",
-      payload: { objetivoId: objetivo.id, intencion: datos.data.intencion },
+      payload: {
+        objetivoId: objetivo.id,
+        intencion: datos.data.intencion,
+        montoObjetivo: datos.data.montoObjetivo ?? null,
+      },
     },
   })
 

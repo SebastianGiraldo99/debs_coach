@@ -23,13 +23,24 @@ export type DeudaContexto = {
   pagoMinimo: number | null
 }
 
+/**
+ * Un objetivo tal como lo lee el modelo. El monto es opcional a propósito: la
+ * mayoría de las intenciones no se miden en pesos, y las que sí —"la cuota
+ * inicial de un apartamento"— solo tienen cifra porque la persona la escribió.
+ */
+export type ObjetivoContexto = {
+  intencion: string
+  montoObjetivo: number | null
+  montoAcumulado: number
+}
+
 export type ContextoFinanciero = {
   nombre: string
   moneda: Moneda
   /** La intención principal (RF-037): el objetivo activo más antiguo. */
   intencion: string
-  /** Las demás intenciones activas. Máximo 2 más. */
-  otrosObjetivos: string[]
+  /** Todos los objetivos activos, el principal primero. Máximo 3 (RF-022). */
+  objetivos: ObjetivoContexto[]
   capacidad: Capacidad
   deudas: DeudaContexto[]
   historial: { tipo: string; progresoPct: number | null; fecha: Date }[]
@@ -64,7 +75,7 @@ export async function construirContexto(
     prisma.objetivo.findMany({
       where: { usuarioId, estado: "activo" },
       orderBy: { createdAt: "asc" },
-      select: { intencion: true },
+      select: { intencion: true, montoObjetivo: true, montoAcumulado: true },
     }),
     prisma.deuda.findMany({
       where: { usuarioId, estado: "activa" },
@@ -111,7 +122,11 @@ export async function construirContexto(
     nombre: usuario.nombre,
     moneda: usuario.monedaBase,
     intencion: objetivos[0].intencion,
-    otrosObjetivos: objetivos.slice(1).map((o) => o.intencion),
+    objetivos: objetivos.map((o) => ({
+      intencion: o.intencion,
+      montoObjetivo: aNumero(o.montoObjetivo),
+      montoAcumulado: aNumero(o.montoAcumulado) ?? 0,
+    })),
     capacidad,
     deudas: deudas.map((d) => ({
       nombre: d.nombre,

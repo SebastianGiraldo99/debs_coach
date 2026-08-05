@@ -6,6 +6,7 @@ import { useState } from "react"
 
 import { enviar } from "@/lib/api-cliente"
 import { Button } from "@/components/ui/button"
+import { CampoMoneda } from "@/components/ui/campo-moneda"
 import { Textarea } from "@/components/ui/textarea"
 import { PasoFormulario } from "@/components/forms/paso-formulario"
 
@@ -18,13 +19,14 @@ const ejemplos = [
 export default function OnboardingIntencionPage() {
   const router = useRouter()
   const [intencion, setIntencion] = useState("")
+  const [montoObjetivo, setMontoObjetivo] = useState<number | null>(null)
   const [guardando, setGuardando] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   async function continuar() {
     setError(null)
     setGuardando(true)
-    const r = await enviar("/api/objetivos", "POST", { intencion })
+    const r = await enviar("/api/objetivos", "POST", { intencion, montoObjetivo })
     setGuardando(false)
     if (!r.ok) {
       setError(r.mensaje)
@@ -71,6 +73,20 @@ export default function OnboardingIntencionPage() {
             onChange={(e) => setIntencion(e.target.value)}
           />
         </div>
+
+        {/* Solo tiene sentido en metas de acumular —una cuota inicial, un
+            viaje—. Salir de deudas ya tiene su cifra en la tabla de deudas, y
+            "dejar de vivir al día" no tiene ninguna. Por eso es opcional y la
+            ayuda dice cuándo dejarlo vacío: preguntarlo sin explicar llevaría
+            a que la gente invente un número. */}
+        <CampoMoneda
+          etiqueta="¿Cuánto necesitas para lograrla?"
+          ayuda="Solo si tu meta es juntar una cantidad. Si es salir de deudas, déjalo vacío."
+          opcional
+          valor={montoObjetivo}
+          onValorChange={setMontoObjetivo}
+          disabled={guardando}
+        />
 
         <div>
           <p className="text-menor text-ink-mute">O empieza con uno de estos:</p>

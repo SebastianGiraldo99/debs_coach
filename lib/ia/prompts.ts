@@ -66,6 +66,23 @@ Respondes SIEMPRE con un único objeto JSON válido, sin texto alrededor y sin b
           )
           .join("\n")
 
+  /**
+   * Una intención por línea, con su cifra cuando la tiene. Sin el monto el
+   * modelo solo puede decir "sigue ahorrando"; con él dice cuánto falta y en
+   * cuántos meses, que es de lo que sirve un coach.
+   */
+  const objetivos = ctx.objetivos
+    .map((o, indice) => {
+      const rotulo = indice === 0 ? "PRINCIPAL" : "también"
+      if (o.montoObjetivo === null) return `- [${rotulo}] "${o.intencion}"`
+      const falta = Math.max(0, o.montoObjetivo - o.montoAcumulado)
+      return (
+        `- [${rotulo}] "${o.intencion}" — necesita ${dinero(o.montoObjetivo)}, ` +
+        `lleva apartado ${dinero(o.montoAcumulado)}, le faltan ${dinero(falta)}`
+      )
+    })
+    .join("\n")
+
   const contextoTrigger: Record<ContextoFinanciero["trigger"], string> = {
     onboarding: "Acaba de terminar el registro de sus datos. Este es su primer plan: preséntaselo como un punto de partida.",
     check_in: "Acaba de completar su check-in mensual. Reconoce lo que hizo y recalibra el plan.",
@@ -75,8 +92,8 @@ Respondes SIEMPRE con un único objeto JSON válido, sin texto alrededor y sin b
   const user = `PERSONA: ${ctx.nombre}
 MONEDA: ${ctx.moneda}
 
-INTENCIÓN PRINCIPAL: "${ctx.intencion}"
-${ctx.otrosObjetivos.length > 0 ? `OTRAS INTENCIONES ACTIVAS: ${ctx.otrosObjetivos.map((o) => `"${o}"`).join(", ")}` : ""}
+INTENCIONES ACTIVAS:
+${objetivos}
 
 SITUACIÓN MENSUAL:
 - Ingresos: ${dinero(capacidad.ingresos)}

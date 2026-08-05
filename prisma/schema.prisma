@@ -145,6 +145,27 @@ model Objetivo {
   editableDesde  DateTime       @map("editable_desde")
   createdAt      DateTime       @default(now()) @map("created_at")
 
+  /// Cuánto dinero hace falta para lograrla. `null` cuando la intención no se
+  /// mide en pesos —"quiero saldar mis deudas", "quiero dejar de vivir al día"—,
+  /// que es la mayoría.
+  ///
+  /// Existe porque sin él las metas de acumulación no tienen forma de medirse:
+  /// el avance de una deuda sale de comparar saldo contra saldo original, pero
+  /// "la cuota inicial de un apartamento" no deja rastro en ninguna tabla. El
+  /// campo es opcional y nunca se deduce del texto: clasificar intenciones
+  /// escritas a mano sería adivinar, y adivinar mal aquí pone una barra de
+  /// progreso donde no la hay.
+  montoObjetivo  Decimal?       @map("monto_objetivo") @db.Decimal(15, 2)
+
+  /// Cuánto lleva apartado para esta meta. Lo reporta la persona en el
+  /// check-in, no lo deduce la app: repartir la capacidad real entre las
+  /// intenciones daría un avance calculado sobre lo que DEBERÍA haber
+  /// apartado, que no es lo que apartó.
+  ///
+  /// Cero y no null: es una suma, y arrancarla en null obligaría a un
+  /// coalesce en cada lectura para llegar al mismo sitio.
+  montoAcumulado Decimal        @default(0) @map("monto_acumulado") @db.Decimal(15, 2)
+
   usuario Usuario @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
 
   @@map("objetivos")

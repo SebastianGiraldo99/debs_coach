@@ -36,7 +36,11 @@ const usuario = await prisma.usuario.create({
           editableDesde: new Date(),
         },
         {
+          // Con monto: es el caso que solo se puede medir si la persona dice
+          // cuánto necesita y cuánto lleva. Ver `Objetivo.montoObjetivo`.
           intencion: "Quiero ahorrar para la cuota inicial de un apartamento",
+          montoObjetivo: 40_000_000,
+          montoAcumulado: 6_000_000,
           editableDesde: new Date(),
         },
       ],

@@ -98,6 +98,13 @@ export const esquemaIntencion = z.object({
     .trim()
     .min(5, "Cuéntanos un poco más sobre lo que quieres lograr.")
     .max(280),
+  /**
+   * Cuánto dinero hace falta para lograrla. Opcional porque la mayoría de las
+   * intenciones no se miden en pesos: "quiero saldar mis deudas" ya tiene su
+   * cifra en la tabla de deudas, y "quiero dejar de vivir al día" no tiene
+   * ninguna. Solo se pide cuando la persona decide ponerlo.
+   */
+  montoObjetivo: monto.positive("Escribe cuánto necesitas o deja el campo vacío.").nullable().optional(),
 })
 
 export const esquemaMoneda = z.object({
