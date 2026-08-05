@@ -141,75 +141,64 @@ gráfica y el plan hablan siempre del mismo momento.
 | 2 — Onboarding | ✅ captura datos reales y marca `onboardingCompletadoEn` |
 | 3 — Motor IA | ✅ genera, valida y persiste el plan; probado contra OpenAI de verdad |
 | 4 — Dashboard e ingreso extra | ✅ dashboard, deudas e ingresos sobre datos reales; probado end-to-end |
-| 5 — Check-in y cron | ⬜ **bloqueado hasta la prueba manual de abajo** |
+| 5 — Check-in y cron | ⬜ **siguiente** — prueba manual del 4 ya pasada |
 | 6 — Objetivos | ⬜ |
 | 7 — QA y despliegue | ⬜ |
 
-### Antes del Sprint 5: prueba manual pendiente
+### La prueba manual del Sprint 4: hecha, y lo que salió de ella
 
-**No empieces el check-in sin haber pasado el dashboard por un navegador.** El
-Sprint 4 se verificó end-to-end contra la base y contra OpenAI, pero por HTTP:
-eso cubre el HTML del servidor y las APIs, no lo que solo existe en el
-navegador. El Sprint 5 se apoya en estas piezas, así que un fallo aquí sale
-mucho más caro después.
+El dashboard pasó por navegador. Salieron dos cosas, las dos ya arregladas:
 
-Lo que **no** está verificado y hay que mirar:
+- **El campo de dinero no agrupaba los miles hasta salir del campo.** Ahora
+  agrupa en cada pulsación. La parte difícil no era agrupar sino el cursor: al
+  insertar un separador el navegador lo deja donde estaba y el caret se corre
+  una posición por cada punto nuevo. `CampoMoneda` cuenta los caracteres que la
+  persona tecleó antes del cursor y busca esa misma posición en el texto ya
+  formateado, así que editar en medio del número no manda el cursor al final.
+  Si tocas ese campo, no rompas eso.
+- **Nadie conoce su tasa de interés.** `lib/finanzas/tasa.ts` la deduce del
+  saldo, la cuota y las cuotas que faltan, por bisección sobre la anualidad
+  —no tiene forma cerrada—. La tasa no es decorativa: ordena el método
+  avalancha en el plan y en la proyección. El número de cuotas **no se
+  persiste**; la tasa sí. De paso, el onboarding pasó a pedir el pago mínimo,
+  que no preguntaba: todas las deudas creadas ahí quedaban sin mínimo.
 
-- **Las dos gráficas.** Solo se montan al abrir "Ver proyección de tu deuda".
-  Los datos que reciben sí están comprobados; que Recharts los pinte y que los
-  ejes se lean con el formato de moneda, no.
-- **Los tres diálogos** (ingreso extra, deuda, ingreso fijo): que no se cierren
-  a mitad de la llamada, que los campos queden deshabilitados mientras guardan,
-  que el segundo clic de "Eliminar" funcione y que el error salga donde debe.
-- **Móvil.** Sin tocar. §6.7 pide el botón de ingreso extra **fijo al fondo en
-  móvil** y eso *no está implementado*: quedó como acción del encabezado, igual
-  que en el mockup.
-- El camino "cuenta completa y sin plan" con su botón de reintento, que es lo
-  primero que se ve tras sembrar el usuario de prueba.
-
-Lo que ya está verificado y **no** hace falta repetir: cifras y plan sobre
-datos reales, ingreso extra regenerando el plan con su `planIaId` en el evento
-(RF-021), CRUD de deudas e ingresos, IDOR devolviendo 404, y los límites de
-capacidad negativa y cero deudas.
+Queda **una sola cosa sin ver en navegador**: la barra fija de móvil que se
+acaba de implementar (§6.7). Compruébala a 375px antes de darla por buena.
 
 Para montar el escenario, ver "Datos de prueba" en Flujo de desarrollo. Sin
 `OPENAI_API_KEY` el motor cae a `planLocal()` con las cifras reales, que
 alcanza para probar la pantalla sin gastar tokens.
 
-### Decisiones abiertas — las decide el usuario, no el que implemente
+### Decisiones ya tomadas — no las reabras
 
-Salieron al leer `docs/plan.md` contra el código real. **No las resuelvas por
-tu cuenta al llegar al sprint**: las tres cambian lo que se construye.
+**El recordatorio quincenal va con `node-cron` y PM2 en modo `fork`
+(RF-028).** `docs/plan.md` lo pide en `instrumentation.ts` y la ETR nombra
+`node-cron` en su diagrama de arquitectura, así que no es un detalle de
+implementación sino arquitectura escrita. La trampa: ese hook corre **una vez
+por proceso**, de modo que con PM2 en cluster el correo sale tantas veces como
+instancias haya. Por eso el Sprint 7 **tiene que fijar `exec_mode: "fork"` e
+`instances: 1`** en `ecosystem.config.js`, y dejarlo dicho ahí en un
+comentario: con 11 usuarios como máximo una instancia sobra, y cambiarlo a
+cluster fallaría en silencio —nadie se entera hasta que alguien recibe el
+mismo correo tres veces—.
 
-**1. Cómo se dispara el recordatorio quincenal (Sprint 5, RF-028).**
-`docs/plan.md` pide `node-cron` inicializado en `instrumentation.ts`, y la ETR
-lo nombra en su diagrama de arquitectura (§ del diagrama, `node-cron ·
-Recordatorios quincenales`), así que **no es un detalle de implementación: es
-la arquitectura escrita**. El problema es que ese hook corre **una vez por
-proceso**. Si el Sprint 7 arranca PM2 en modo cluster —el plan no dice el
-modo—, el email sale tantas veces como instancias haya. Opciones:
+**El botón de ingreso extra ya está fijo al fondo en móvil (§6.7).** Vive en
+`components/dashboard/accion-ingreso-extra.tsx`, que exporta las dos piezas:
+`AccionIngresoExtra` para el slot del encabezado en escritorio y
+`BarraIngresoExtraMovil` para la barra fija. Cada una monta su propio diálogo
+porque Radix admite un solo `DialogTrigger`; solo una está visible a la vez. La
+barra lleva delante un hueco de su mismo alto, porque `fixed` sale del flujo y
+si no tapa lo último de la página.
 
-- Dejar `node-cron` y **fijar PM2 en `fork` (una instancia)**. Es lo que menos
-  se aleja de la ETR. Con 11 usuarios máximo, una instancia sobra.
-- Cron del sistema en el VPS golpeando una ruta protegida por secreto. Más
-  fiable y sobrevive a los reinicios de la app, pero se aparta del diagrama.
+### Decisión abierta — la decide el usuario
 
-Lo que **no** vale es dejarlo indefinido y descubrirlo en producción con
-correos duplicados. RF-028 solo exige que el email llegue cada 15 días; el
-cómo es lo que hay que decidir.
-
-**2. Dónde vive Postgres en producción (Sprint 7).** `docs/plan.md` manda
+**Dónde vive Postgres en producción (Sprint 7).** `docs/plan.md` manda
 instalar PostgreSQL local en el VPS y ajustar `pg_hba.conf`. Pero **ya corre
 en Docker en ese VPS** —es contra lo que se desarrolla por el túnel SSH— así
 que el plan describe un servidor que no es el que existe. Antes de desplegar
 hay que decidir si se usa el contenedor que ya está o se levanta otro, y
 rehacer los pasos 2 y 3 del Sprint 7 en consecuencia.
-
-**3. El botón de ingreso extra en móvil (§6.7).** Las directrices lo piden
-**fijo al fondo de la pantalla en móvil** y hoy es una acción del encabezado,
-igual que en el mockup. No se implementó en el Sprint 4 porque cambia el
-layout de dos páginas y no había forma de verificarlo sin navegador. Decidir
-si entra antes del Sprint 5 o se agrupa con el responsive del Sprint 7.
 
 **Aclaración de algo que NO es una duda:** RF-029 fija **tres preguntas**
 —pagos, nuevas deudas, ingresos extra— y el "paso 4" que describe

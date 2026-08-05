@@ -4,7 +4,10 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { EncabezadoPagina } from "@/components/layout/encabezado-pagina"
 import { EstadoVacio } from "@/components/estados/estado-vacio"
-import { DialogoIngresoExtra } from "@/components/dashboard/dialogo-ingreso-extra"
+import {
+  AccionIngresoExtra,
+  BarraIngresoExtraMovil,
+} from "@/components/dashboard/accion-ingreso-extra"
 import { DialogoIngreso, type IngresoEditable } from "@/components/ingresos/dialogo-ingreso"
 import { requerirUsuario } from "@/lib/auth/dal"
 import { prisma } from "@/lib/db/prisma"
@@ -46,17 +49,7 @@ export default async function IngresosPage() {
       <EncabezadoPagina
         titulo="Tus ingresos"
         descripcion="Lo que entra cada mes y los ingresos extra que registras cuando llegan."
-        accion={
-          <DialogoIngresoExtra
-            moneda={moneda}
-            trigger={
-              <Button variant="secondary">
-                <Plus className="size-5" />
-                Registrar ingreso extra
-              </Button>
-            }
-          />
-        }
+        accion={<AccionIngresoExtra moneda={moneda} />}
       />
 
       <section aria-labelledby="fijos-titulo" className="flex flex-col gap-4">
@@ -144,6 +137,8 @@ export default async function IngresosPage() {
           </ul>
         )}
       </section>
+
+      <BarraIngresoExtraMovil moneda={moneda} />
     </div>
   )
 }

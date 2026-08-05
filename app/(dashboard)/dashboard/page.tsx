@@ -1,5 +1,4 @@
 import Link from "next/link"
-import { Plus } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { EncabezadoPagina } from "@/components/layout/encabezado-pagina"
@@ -10,7 +9,10 @@ import { AvisoPlan } from "@/components/dashboard/aviso-plan"
 import { BotonGenerarPlan } from "@/components/dashboard/boton-generar-plan"
 import { ProyeccionPlegable } from "@/components/dashboard/proyeccion-plegable"
 import { HistorialCheckins } from "@/components/dashboard/historial-checkins"
-import { DialogoIngresoExtra } from "@/components/dashboard/dialogo-ingreso-extra"
+import {
+  AccionIngresoExtra,
+  BarraIngresoExtraMovil,
+} from "@/components/dashboard/accion-ingreso-extra"
 import { EstadoVacio } from "@/components/estados/estado-vacio"
 import { EstadoCargando } from "@/components/estados/estado-cargando"
 import { EstadoError } from "@/components/estados/estado-error"
@@ -66,17 +68,7 @@ export default async function DashboardPage(props: PageProps<"/dashboard">) {
     <EncabezadoPagina
       titulo="Tu plan"
       descripcion={datos.intencion ? `Tu intención: "${datos.intencion}"` : undefined}
-      accion={
-        <DialogoIngresoExtra
-          moneda={datos.moneda}
-          trigger={
-            <Button variant="secondary">
-              <Plus className="size-5" />
-              Registrar ingreso extra
-            </Button>
-          }
-        />
-      }
+      accion={<AccionIngresoExtra moneda={datos.moneda} />}
     />
   )
 
@@ -94,6 +86,7 @@ export default async function DashboardPage(props: PageProps<"/dashboard">) {
             </Button>
           }
         />
+        <BarraIngresoExtraMovil moneda={datos.moneda} />
       </div>
     )
   }
@@ -145,6 +138,7 @@ export default async function DashboardPage(props: PageProps<"/dashboard">) {
         moneda={datos.moneda}
       />
       <HistorialCheckins checkins={datos.checkins} moneda={datos.moneda} />
+      <BarraIngresoExtraMovil moneda={datos.moneda} />
     </div>
   )
 }
