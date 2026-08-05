@@ -16,6 +16,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { CalculadoraTasa } from "@/components/deudas/calculadora-tasa"
 import { enviar } from "@/lib/api-cliente"
 import { etiquetasTipoDeuda, tiposDeuda, type TipoDeuda } from "@/lib/finanzas/etiquetas"
 import type { Moneda } from "@/lib/formato"
@@ -184,20 +185,9 @@ export function DialogoDeuda({ trigger, deuda, moneda }: Props) {
             disabled={ocupado}
           />
 
-          <Campo
-            etiqueta="Tasa de interés"
-            ayuda="Efectiva anual, si la conoces"
-            opcional
-            inputMode="decimal"
-            placeholder="Ej: 32"
-            value={tasaEA ?? ""}
-            onChange={(e) => {
-              const n = Number.parseFloat(e.target.value.replace(",", "."))
-              setTasaEA(Number.isNaN(n) ? null : n)
-            }}
-            disabled={ocupado}
-          />
-
+          {/* El pago mínimo va antes que la tasa porque es de donde sale la
+              tasa cuando no se conoce. Preguntar primero por el dato difícil y
+              después por el fácil que lo produce es el orden al revés. */}
           <CampoMoneda
             etiqueta="Pago mínimo mensual"
             ayuda="Lo que te exigen cada mes, si lo sabes"
@@ -207,6 +197,23 @@ export function DialogoDeuda({ trigger, deuda, moneda }: Props) {
             moneda={moneda}
             disabled={ocupado}
           />
+
+          <div className="flex flex-col gap-2">
+            <Campo
+              etiqueta="Tasa de interés"
+              ayuda="Efectiva anual, si la conoces"
+              opcional
+              inputMode="decimal"
+              placeholder="Ej: 32"
+              value={tasaEA ?? ""}
+              onChange={(e) => {
+                const n = Number.parseFloat(e.target.value.replace(",", "."))
+                setTasaEA(Number.isNaN(n) ? null : n)
+              }}
+              disabled={ocupado}
+            />
+            <CalculadoraTasa saldo={saldo} cuota={pagoMinimo} onCalcular={setTasaEA} />
+          </div>
 
           {error && (
             <p role="alert" className="text-menor text-deuda">

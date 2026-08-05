@@ -23,7 +23,15 @@ export default function OnboardingDeudasPage() {
     setError(null)
     setGuardando(true)
     const r = await enviar("/api/deudas", "PUT", {
-      deudas: filas.filter((f) => f.nombre.trim() && f.tipo && f.saldo !== null).map((f) => ({ nombre: f.nombre.trim(), tipo: f.tipo, saldo: f.saldo!, tasaEA: f.tasaEA })),
+      deudas: filas
+        .filter((f) => f.nombre.trim() && f.tipo && f.saldo !== null)
+        .map((f) => ({
+          nombre: f.nombre.trim(),
+          tipo: f.tipo,
+          saldo: f.saldo!,
+          tasaEA: f.tasaEA,
+          pagoMinimo: f.pagoMinimo,
+        })),
     })
     setGuardando(false)
     if (!r.ok) {

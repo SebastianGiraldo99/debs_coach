@@ -4,7 +4,13 @@ import * as React from "react"
 
 import { cn } from "@/lib/utils"
 import { Label } from "@/components/ui/label"
-import { agruparMiles, limpiarMoneda, sanearEntradaMoneda, simboloMoneda, type Moneda } from "@/lib/formato"
+import {
+  agruparMiles,
+  agruparMilesEnEdicion,
+  limpiarMoneda,
+  simboloMoneda,
+  type Moneda,
+} from "@/lib/formato"
 
 export interface CampoMonedaProps {
   etiqueta: string
@@ -25,8 +31,57 @@ export interface CampoMonedaProps {
 }
 
 /**
+ * `useLayoutEffect` en el servidor no corre y React avisa por consola. Se elige
+ * la versión que toca según dónde estemos: el efecto solo reposiciona el
+ * cursor, que en el servidor no existe.
+ */
+const useEfectoDeLayout =
+  typeof window === "undefined" ? React.useEffect : React.useLayoutEffect
+
+/**
+ * Los caracteres que el usuario "escribió" de verdad, frente a los que pone el
+ * formato. Los separadores de miles no cuentan; el punto decimal sí, y solo en
+ * las monedas que lo usan —en pesos ese punto es separador de miles—.
+ */
+function esSignificativo(caracter: string, conDecimales: boolean): boolean {
+  return /\d/.test(caracter) || (conDecimales && caracter === ".")
+}
+
+function contarSignificativos(texto: string, hasta: number, conDecimales: boolean): number {
+  let cuenta = 0
+  for (let i = 0; i < hasta; i++) {
+    if (esSignificativo(texto[i], conDecimales)) cuenta++
+  }
+  return cuenta
+}
+
+/** Dónde cae el cursor tras `cantidad` caracteres significativos del texto ya formateado. */
+function posicionTrasSignificativos(
+  texto: string,
+  cantidad: number,
+  conDecimales: boolean,
+): number {
+  if (cantidad === 0) return 0
+  let cuenta = 0
+  for (let i = 0; i < texto.length; i++) {
+    if (esSignificativo(texto[i], conDecimales)) {
+      cuenta++
+      if (cuenta === cantidad) return i + 1
+    }
+  }
+  return texto.length
+}
+
+/**
  * Campo de dinero (§15.3): prefijo "$" fijo, teclado numérico en móvil,
- * agrupa miles al salir del campo (blur), acepta pegar "$1.200.000".
+ * agrupa miles **mientras se escribe**, acepta pegar "$1.200.000".
+ *
+ * Agrupar en cada pulsación obliga a reponer el cursor a mano: al insertar un
+ * separador el navegador lo deja donde estaba y el caret se corre una posición
+ * por cada punto que aparece. Se cuentan los caracteres que la persona
+ * realmente tecleó antes del cursor y se busca esa misma posición en el texto
+ * ya formateado, así que editar en medio del número no manda el cursor al
+ * final.
  */
 const CampoMoneda = React.forwardRef<HTMLInputElement, CampoMonedaProps>(
   (
@@ -51,9 +106,14 @@ const CampoMoneda = React.forwardRef<HTMLInputElement, CampoMonedaProps>(
     const ayudaId = ayuda ? `${campoId}-ayuda` : undefined
     const errorId = error ? `${campoId}-error` : undefined
 
-    // Texto mostrado en el input. Al escribir muestra dígitos; al blur agrupa.
+    const conDecimales = moneda !== "COP"
+
+    // Texto mostrado en el input, siempre agrupado.
     const [texto, setTexto] = React.useState(valor != null ? agruparMiles(valor, moneda) : "")
     const [enfocado, setEnfocado] = React.useState(false)
+
+    const nodo = React.useRef<HTMLInputElement | null>(null)
+    const cursorPendiente = React.useRef<number | null>(null)
 
     // Sincroniza el texto cuando el valor externo cambia y no está enfocado.
     React.useEffect(() => {
@@ -61,6 +121,13 @@ const CampoMoneda = React.forwardRef<HTMLInputElement, CampoMonedaProps>(
         setTexto(valor != null ? agruparMiles(valor, moneda) : "")
       }
     }, [valor, enfocado, moneda])
+
+    useEfectoDeLayout(() => {
+      if (cursorPendiente.current !== null && nodo.current) {
+        nodo.current.setSelectionRange(cursorPendiente.current, cursorPendiente.current)
+        cursorPendiente.current = null
+      }
+    })
 
     // El ejemplo del placeholder tiene que verse como la moneda del campo.
     const placeholderMoneda = placeholder ?? (moneda === "COP" ? "Ej: 8.200.000" : "Ej: 2,000.00")
@@ -87,7 +154,11 @@ const CampoMoneda = React.forwardRef<HTMLInputElement, CampoMonedaProps>(
           <span className="pointer-events-none select-none pr-1 text-ink-mute">{simboloMoneda(moneda)}</span>
           <input
             id={campoId}
-            ref={ref}
+            ref={(elemento) => {
+              nodo.current = elemento
+              if (typeof ref === "function") ref(elemento)
+              else if (ref) ref.current = elemento
+            }}
             type="text"
             inputMode={moneda === "COP" ? "numeric" : "decimal"}
             disabled={disabled}
@@ -95,18 +166,26 @@ const CampoMoneda = React.forwardRef<HTMLInputElement, CampoMonedaProps>(
             aria-describedby={cn(ayudaId, errorId) || undefined}
             placeholder={placeholderMoneda}
             value={texto}
-            onFocus={() => {
-              setEnfocado(true)
-              setTexto(valor != null ? String(valor) : "")
-            }}
+            onFocus={() => setEnfocado(true)}
             onChange={(e) => {
-              // Se muestra el texto saneado, no el número: así un "1800." a
-              // medio escribir no pierde el punto decimal en cada pulsación.
-              setTexto(sanearEntradaMoneda(e.target.value, moneda))
-              onValorChange(limpiarMoneda(e.target.value, moneda))
+              const bruto = e.target.value
+              const cursor = e.target.selectionStart ?? bruto.length
+              const tecleados = contarSignificativos(bruto, cursor, conDecimales)
+
+              const formateado = agruparMilesEnEdicion(bruto, moneda)
+              setTexto(formateado)
+              onValorChange(limpiarMoneda(bruto, moneda))
+
+              cursorPendiente.current = posicionTrasSignificativos(
+                formateado,
+                tecleados,
+                conDecimales,
+              )
             }}
             onBlur={() => {
               setEnfocado(false)
+              // Al salir sí se aplica el formato definitivo, con los decimales
+              // completos que la moneda pida.
               setTexto(valor != null ? agruparMiles(valor, moneda) : "")
             }}
             className={cn(

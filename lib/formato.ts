@@ -18,13 +18,15 @@ type ConfigMoneda = {
   decimales: number
   /** Separador decimal del locale, para las abreviaturas de los ejes. */
   separadorDecimal: string
+  /** Separador de miles del locale, para agrupar mientras se teclea. */
+  separadorMiles: string
 }
 
 const CONFIG: Record<Moneda, ConfigMoneda> = {
   // El peso no usa decimales en la práctica cotidiana; mostrarlos es ruido.
-  COP: { locale: "es-CO", simbolo: "$", decimales: 0, separadorDecimal: "," },
+  COP: { locale: "es-CO", simbolo: "$", decimales: 0, separadorDecimal: ",", separadorMiles: "." },
   // "US$" y no "$" para que ambas monedas sean distinguibles de un vistazo.
-  USD: { locale: "en-US", simbolo: "US$", decimales: 2, separadorDecimal: "." },
+  USD: { locale: "en-US", simbolo: "US$", decimales: 2, separadorDecimal: ".", separadorMiles: "," },
 }
 
 /**
@@ -165,6 +167,31 @@ export function sanearEntradaMoneda(texto: string, moneda: Moneda = "COP"): stri
   if (resto.length === 0) return entera
   const decimal = resto.join("").slice(0, CONFIG[moneda].decimales)
   return `${entera}.${decimal}`
+}
+
+/**
+ * Agrupa los miles de lo que se está tecleando, sin tocar los decimales.
+ *
+ * No sirve `agruparMiles` para esto: pasa por `Intl` con un número fijo de
+ * decimales, así que un "1800." a medio escribir se convertiría en "1,800.00"
+ * y el cursor quedaría atrapado detrás de unos ceros que nadie pidió. Aquí la
+ * parte entera se agrupa a mano y la decimal se deja exactamente como venía.
+ *
+ * agruparMilesEnEdicion("1200000") → "1.200.000"   (COP)
+ * agruparMilesEnEdicion("1800.5", "USD") → "1,800.5"
+ */
+export function agruparMilesEnEdicion(texto: string, moneda: Moneda = "COP"): string {
+  const saneado = sanearEntradaMoneda(texto, moneda)
+  const [entera, ...resto] = saneado.split(".")
+
+  // Los ceros a la izquierda se caen salvo que sean el número entero: quien
+  // teclea "007" quiso escribir 7, pero "0" es un cero legítimo.
+  const limpia = entera.replace(/^0+(?=\d)/, "")
+  const agrupada = limpia.replace(/\B(?=(\d{3})+(?!\d))/g, CONFIG[moneda].separadorMiles)
+
+  // Si había punto decimal se conserva, aunque todavía no tenga cifras
+  // detrás: es el estado normal a mitad de "18.5".
+  return resto.length > 0 ? `${agrupada}.${resto.join("")}` : agrupada
 }
 
 /**
