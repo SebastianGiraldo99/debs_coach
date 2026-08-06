@@ -132,6 +132,57 @@ gráfica y el plan hablan siempre del mismo momento.
   devuelve como medianoche UTC y `formatearFecha` lee la hora local: en
   Colombia el día se corre uno hacia atrás.
 
+## El Check-in
+
+`POST /api/checkin` recibe las tres preguntas de RF-029 y **lo apartado para
+cada meta con monto**, que no es una cuarta pregunta sino el detalle de la
+tercera: el dinero que entró de más fue a algún sitio.
+
+- **Primero se persiste lo que la persona reportó, después se llama al motor.**
+  Al revés, un fallo del proveedor borraría los pagos que acaba de anotar.
+  `CheckIn.respuestaIa` y `planGenerado` son opcionales por eso, y un check-in
+  sin plan **sigue contando** para la fecha del siguiente (RF-033).
+- El abono **se recorta al saldo**: pagar de más es saldar, no generar un saldo
+  a favor que la app no sabe representar.
+- El denominador del avance por deuda **incluye las saldadas**. Si no, saldar
+  una deuda bajaría el porcentaje, que es al revés de lo que pasó.
+- `Evento.progresoPct` es el avance de la **intención principal**, no un
+  promedio: mezclar un 80% de deuda saldada con un 10% de una cuota inicial da
+  un 45% que no describe nada. El detalle por objetivo va en `CheckIn.snapshot`.
+- La capacidad se recalcula **dentro** de la transacción. `calcularCapacidadReal`
+  usa el cliente de fuera y no vería ninguna de las escrituras anteriores.
+- El sí/no del flujo **no viene preseleccionado**: un "no" por defecto haría que
+  quien no lee la pregunta reporte que no abrió deudas, y eso envenena el plan
+  sin que nadie se entere.
+
+**Metas con monto.** `Objetivo.montoObjetivo` es opcional y **nunca se deduce
+del texto**: clasificar intenciones escritas a mano sería adivinar, y adivinar
+mal pone una barra de progreso donde no la hay. `montoAcumulado` lo reporta la
+persona; repartir la capacidad real entre las intenciones daría el avance sobre
+lo que *debería* haber apartado, que no es lo que apartó.
+
+## El cron
+
+`instrumentation.ts` → `lib/cron/scheduler.ts`. **`register()` corre en todos
+los entornos, incluido Edge**, así que el planificador se importa de forma
+dinámica y solo bajo `NEXT_RUNTIME === "nodejs"`: un import estático arrastraría
+`node-cron` y Prisma al bundle de Edge y el build fallaría.
+
+- Corre **todos los días a las 9:00** (`America/Bogota`), no cada quince: quién
+  está vencido lo decide la consulta mirando el último check-in de cada
+  persona, que son fechas distintas.
+- `Usuario.ultimoRecordatorioEn` evita el correo diario a quien se salta un
+  check-in. Solo se marca **si el envío salió bien**.
+- El job va envuelto en try/catch: una excepción sin capturar dentro de
+  `node-cron` tumbaría el proceso entero.
+- Para probarlo sin esperar: `RESEND_API_KEY= npm run script --
+  scripts/probar-recordatorios.mts --vencer <email>`.
+
+**Scripts que importan módulos de la app** necesitan `npm run script --
+scripts/<archivo>.mts`. El type stripping de Node deja los `import` tal cual y
+el alias `@/` le llega como si fuera un paquete de npm; `scripts/alias.mjs` es
+el hook de resolución que lo arregla.
+
 ## Estado por sprint
 
 | Sprint | Estado |
@@ -141,8 +192,8 @@ gráfica y el plan hablan siempre del mismo momento.
 | 2 — Onboarding | ✅ captura datos reales y marca `onboardingCompletadoEn` |
 | 3 — Motor IA | ✅ genera, valida y persiste el plan; probado contra OpenAI de verdad |
 | 4 — Dashboard e ingreso extra | ✅ dashboard, deudas e ingresos sobre datos reales; probado end-to-end |
-| 5 — Check-in y cron | ⬜ **siguiente** — prueba manual del 4 ya pasada |
-| 6 — Objetivos | ⬜ |
+| 5 — Check-in y cron | ✅ flujo, API, progreso por objetivo y recordatorio; probado contra la base |
+| 6 — Objetivos | ⬜ **siguiente** |
 | 7 — QA y despliegue | ⬜ |
 
 ### La prueba manual del Sprint 4: hecha, y lo que salió de ella
@@ -210,10 +261,10 @@ Y una trampa de nombres: `docs/plan.md` cita `FormDeudas` y `FormIngresoExtra`,
 que **no existen**. Los componentes reales son `components/forms/fila-deuda.tsx`
 y `components/dashboard/dialogo-ingreso-extra.tsx`. Reusarlos, no rehacerlos.
 
-**3 archivos siguen leyendo `lib/mock/`**: las páginas de `objetivos` y
-`checkin`, y `components/checkin/checkin-formulario.tsx`. Se conectan en los
-sprints 5 y 6. (`lib/finanzas/etiquetas.ts` y `lib/ia/schema.ts` solo lo
-mencionan en comentarios.)
+**Queda un solo archivo leyendo `lib/mock/`**: la página de `objetivos`, que
+conecta el Sprint 6. (`lib/finanzas/etiquetas.ts` menciona la carpeta en un
+comentario, nada más.) `lib/mock/egresos.ts` está huérfano desde antes del
+Sprint 4: nunca tuvo pantalla.
 
 Los mocks son el contrato visual —replican los campos del schema— así que
 conectar una pantalla es **sustituir el import por la consulta real, no rehacer
@@ -229,8 +280,11 @@ Pendientes conocidos:
   después de las 7 p.m. en Colombia guarda el día siguiente. Hoy nadie lo
   muestra —el dashboard usa `PlanIa.createdAt`— pero si se pinta, hay que
   arreglarlo antes.
-- `/checkin` es un formulario de un solo campo, no el flujo de 3 pasos que
-  exige RF-029. Se rehace en el Sprint 5.
+- **Nadie ha visto el flujo de check-in en un navegador.** Está probado contra
+  la base por HTTP —los efectos en deudas, objetivos, eventos y snapshot son
+  correctos— pero los tres pasos, el sí/no y la pantalla de resultado no han
+  pasado por pantalla. Es lo mismo que quedó pendiente del Sprint 4 con las
+  gráficas, y ahí salieron dos cosas.
 - `app/(dashboard)/estilo/` es una página de desarrollo; se elimina antes de
   producción.
 - `GET /api/admin/usuarios` no existe a propósito: la página consulta la base
