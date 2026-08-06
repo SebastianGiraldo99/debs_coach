@@ -196,9 +196,10 @@ el hook de resolución que lo arregla.
 | 6 — Objetivos | ⬜ **siguiente** |
 | 7 — QA y despliegue | ⬜ |
 
-### La prueba manual del Sprint 4: hecha, y lo que salió de ella
+### Las pruebas manuales: hechas, y lo que salieron de ellas
 
-El dashboard pasó por navegador. Salieron dos cosas, las dos ya arregladas:
+El dashboard del Sprint 4 pasó por navegador. Salieron dos cosas, las dos ya
+arregladas, y las dos siguen siendo las de mayor riesgo de romper sin querer:
 
 - **El campo de dinero no agrupaba los miles hasta salir del campo.** Ahora
   agrupa en cada pulsación. La parte difícil no era agrupar sino el cursor: al
@@ -214,8 +215,11 @@ El dashboard pasó por navegador. Salieron dos cosas, las dos ya arregladas:
   persiste**; la tasa sí. De paso, el onboarding pasó a pedir el pago mínimo,
   que no preguntaba: todas las deudas creadas ahí quedaban sin mínimo.
 
-Queda **una sola cosa sin ver en navegador**: la barra fija de móvil que se
-acaba de implementar (§6.7). Compruébala a 375px antes de darla por buena.
+El flujo de check-in del Sprint 5 también pasó por navegador, incluida la
+pantalla de resultado, y quedó aprobado sin cambios.
+
+Queda **una sola cosa sin ver en navegador**: la barra fija de móvil (§6.7).
+Compruébala a 375px antes de darla por buena.
 
 Para montar el escenario, ver "Datos de prueba" en Flujo de desarrollo. Sin
 `OPENAI_API_KEY` el motor cae a `planLocal()` con las cifras reales, que
@@ -280,11 +284,9 @@ Pendientes conocidos:
   después de las 7 p.m. en Colombia guarda el día siguiente. Hoy nadie lo
   muestra —el dashboard usa `PlanIa.createdAt`— pero si se pinta, hay que
   arreglarlo antes.
-- **Nadie ha visto el flujo de check-in en un navegador.** Está probado contra
-  la base por HTTP —los efectos en deudas, objetivos, eventos y snapshot son
-  correctos— pero los tres pasos, el sí/no y la pantalla de resultado no han
-  pasado por pantalla. Es lo mismo que quedó pendiente del Sprint 4 con las
-  gráficas, y ahí salieron dos cosas.
+- **La barra fija de móvil (§6.7) sigue sin verse en navegador.** Es lo único
+  del área de usuario que nadie ha comprobado en pantalla; mírala a 375px antes
+  del QA del Sprint 7.
 - `app/(dashboard)/estilo/` es una página de desarrollo; se elimina antes de
   producción.
 - `GET /api/admin/usuarios` no existe a propósito: la página consulta la base
