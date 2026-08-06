@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "script": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --import ./scripts/registrar-alias.mjs"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.9.1",

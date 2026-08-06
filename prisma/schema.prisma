@@ -125,6 +125,16 @@ model Usuario {
   /// tiempo del usuario.
   onboardingCompletadoEn DateTime? @map("onboarding_completado_en")
 
+  /// Cuándo se le mandó el último recordatorio de check-in (RF-028).
+  ///
+  /// Sin este campo el cron diario mandaría un correo CADA DÍA a partir del
+  /// día 15 a quien no haya hecho el check-in, que es la forma más rápida de
+  /// que alguien marque la app como spam. Con él se espacia el recordatorio.
+  ///
+  /// Es estado del sistema, no del usuario, y por eso vive aquí y no en
+  /// `eventos`: esa tabla es el historial financiero que la persona ve.
+  ultimoRecordatorioEn DateTime? @map("ultimo_recordatorio_en")
+
   objetivos      Objetivo[]
   deudas         Deuda[]
   ingresos       Ingreso[]
