@@ -256,8 +256,25 @@ model CheckIn {
   pagosRealizados  Json     @map("pagos_realizados")
   nuevasDeudas     Json     @map("nuevas_deudas")
   ingresosExtra    Json     @map("ingresos_extra")
-  respuestaIa      String   @map("respuesta_ia")
-  planGenerado     Json     @map("plan_generado")
+  /// El mensaje y el plan que el motor devolvió para este check-in.
+  ///
+  /// Opcionales porque se escriben DESPUÉS: primero se guarda lo que la
+  /// persona reportó —sus pagos, sus deudas nuevas— y solo entonces se llama
+  /// al modelo, que tarda medio minuto. Al revés, un fallo del proveedor
+  /// borraría lo único que la app no puede reconstruir. Un check-in sin plan
+  /// sigue siendo un check-in: cuenta para la fecha del siguiente (RF-033).
+  respuestaIa      String?  @map("respuesta_ia")
+  planGenerado     Json?    @map("plan_generado")
+
+  /// Foto del estado financiero al cerrar el check-in y el avance de cada
+  /// objetivo, que es literalmente lo que pide RF-032.
+  ///
+  /// Va aquí y no se recalcula al abrirlo porque un check-in es un momento:
+  /// releerlo dentro de seis meses con las cifras de entonces es lo que le da
+  /// sentido a la línea del historial. Las demás columnas guardan lo que la
+  /// persona reportó; esta guarda en qué situación la dejó.
+  snapshot         Json
+
   createdAt        DateTime @default(now()) @map("created_at")
 
   /// Tasa (COP por 1 unidad de moneda extranjera) con la que se calculó este
