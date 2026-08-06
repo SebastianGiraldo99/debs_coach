@@ -3,17 +3,16 @@ import { NextResponse } from "next/server"
 import { exigirUsuario } from "@/lib/auth/api"
 import { esquemaIntencion } from "@/lib/finanzas/esquemas"
 import { prisma } from "@/lib/db/prisma"
+import { MAX_OBJETIVOS_ACTIVOS, calcularEditableDesde } from "@/lib/objetivos/compromiso"
 
 /**
  * POST /api/objetivos — crea la intención del usuario (RF-008).
  *
  * Máximo 3 activas, y cada una queda congelada 30 días: la ETR lo pide para
  * que el compromiso signifique algo. Cambiar de objetivo cada semana anula
- * cualquier plan.
+ * cualquier plan. Las dos reglas viven en `lib/objetivos/compromiso.ts`, que es
+ * de donde las lee también la pantalla.
  */
-
-const MAX_ACTIVOS = 3
-const DIAS_COMPROMISO = 30
 
 export async function POST(request: Request) {
   const guardia = await exigirUsuario()
@@ -66,25 +65,22 @@ export async function POST(request: Request) {
   const activos = await prisma.objetivo.count({
     where: { usuarioId, estado: "activo" },
   })
-  if (activos >= MAX_ACTIVOS) {
+  if (activos >= MAX_OBJETIVOS_ACTIVOS) {
     return NextResponse.json(
       {
         ok: false,
-        mensaje: `Ya tienes ${MAX_ACTIVOS} intenciones activas. Marca una como lograda antes de agregar otra.`,
+        mensaje: `Ya tienes ${MAX_OBJETIVOS_ACTIVOS} intenciones activas. Marca una como lograda antes de agregar otra.`,
       },
       { status: 409 },
     )
   }
-
-  const editableDesde = new Date()
-  editableDesde.setDate(editableDesde.getDate() + DIAS_COMPROMISO)
 
   const objetivo = await prisma.objetivo.create({
     data: {
       usuarioId,
       intencion: datos.data.intencion,
       montoObjetivo: datos.data.montoObjetivo ?? null,
-      editableDesde,
+      editableDesde: calcularEditableDesde(),
     },
     select: { id: true },
   })

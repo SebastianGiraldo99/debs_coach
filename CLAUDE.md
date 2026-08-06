@@ -161,6 +161,34 @@ mal pone una barra de progreso donde no la hay. `montoAcumulado` lo reporta la
 persona; repartir la capacidad real entre las intenciones daría el avance sobre
 lo que *debería* haber apartado, que no es lo que apartó.
 
+## Los Objetivos
+
+`lib/objetivos/compromiso.ts` guarda las dos reglas —tope de 3 (RF-022) y
+candado de 30 días (RF-024)— y las leen a la vez la pantalla y los tres
+endpoints. El 30 duplicado en dos sitios acababa con un botón prometiendo lo
+que la API rechaza.
+
+- **Marcar una intención como lograda NO dispara el Motor IA**, aunque
+  `docs/plan.md` lo pida. `TriggerPlan` tiene tres valores y RF-034 los fija;
+  un cuarto sería cambiar el requerimiento desde una migración. El plan se
+  recalibra en el próximo check-in, y eso es exactamente lo que dice la
+  propuesta que aparece al cerrar la meta: prometer menos y cumplirlo.
+- **El candado cubre el texto y el monto.** Subir la meta de 10 a 20 millones
+  cambia el plan tanto como reescribir la frase.
+- **Guardar sin cambiar nada no reinicia los 30 días.** Quien abre el diálogo,
+  lo lee y le da a guardar no cambió de objetivo; cobrarle un mes por eso sería
+  un castigo por curiosear.
+- **Editar no escribe evento**: `TipoEvento` no tiene `objetivo_editado` y
+  añadirlo obligaría a migrar el enum para alimentar un historial que nadie
+  pinta. Crear y lograr sí lo escriben, y el `payload` de `objetivo_logrado`
+  congela intención y montos.
+- **"Ya la logré" funciona dentro de los 30 días.** El candado es contra cambiar
+  de idea, no contra terminar. Cerrar sí es definitivo: no se reabre, se crea
+  otra —y la nueva arranca su propio compromiso—.
+- La propuesta de RF-027 va por `?nueva=1`: el botón navega y **la página**
+  decide si ofrecerla, porque es la que sabe cuántas quedan activas. Con las 3
+  ocupadas no se propone nada, que es lo honesto.
+
 ## El cron
 
 `instrumentation.ts` → `lib/cron/scheduler.ts`. **`register()` corre en todos
@@ -193,8 +221,8 @@ el hook de resolución que lo arregla.
 | 3 — Motor IA | ✅ genera, valida y persiste el plan; probado contra OpenAI de verdad |
 | 4 — Dashboard e ingreso extra | ✅ dashboard, deudas e ingresos sobre datos reales; probado end-to-end |
 | 5 — Check-in y cron | ✅ flujo, API, progreso por objetivo y recordatorio; probado contra la base |
-| 6 — Objetivos | ⬜ **siguiente** |
-| 7 — QA y despliegue | ⬜ |
+| 6 — Objetivos | ✅ CRUD de intenciones, candado de 30 días y cierre; probado contra la base |
+| 7 — QA y despliegue | ⬜ **siguiente** |
 
 ### Las pruebas manuales: hechas, y lo que salieron de ellas
 
@@ -218,8 +246,13 @@ arregladas, y las dos siguen siendo las de mayor riesgo de romper sin querer:
 El flujo de check-in del Sprint 5 también pasó por navegador, incluida la
 pantalla de resultado, y quedó aprobado sin cambios.
 
-Queda **una sola cosa sin ver en navegador**: la barra fija de móvil (§6.7).
-Compruébala a 375px antes de darla por buena.
+Los objetivos del Sprint 6 se probaron **contra la base, no en navegador**: los
+tres endpoints con curl y sesión real (editar, candado de 30 días, guardar sin
+cambios, tope de 3, cerrar, cerrar dos veces, uuid ajeno → 404) y el HTML de la
+pantalla en sus tres formas —con cupo, sin cupo y con la propuesta de RF-027—.
+
+Quedan **dos cosas sin ver en navegador**: la barra fija de móvil (§6.7), a
+375px, y la pantalla de objetivos.
 
 Para montar el escenario, ver "Datos de prueba" en Flujo de desarrollo. Sin
 `OPENAI_API_KEY` el motor cae a `planLocal()` con las cifras reales, que
@@ -265,15 +298,11 @@ Y una trampa de nombres: `docs/plan.md` cita `FormDeudas` y `FormIngresoExtra`,
 que **no existen**. Los componentes reales son `components/forms/fila-deuda.tsx`
 y `components/dashboard/dialogo-ingreso-extra.tsx`. Reusarlos, no rehacerlos.
 
-**Queda un solo archivo leyendo `lib/mock/`**: la página de `objetivos`, que
-conecta el Sprint 6. (`lib/finanzas/etiquetas.ts` menciona la carpeta en un
-comentario, nada más.) `lib/mock/egresos.ts` está huérfano desde antes del
-Sprint 4: nunca tuvo pantalla.
-
-Los mocks son el contrato visual —replican los campos del schema— así que
-conectar una pantalla es **sustituir el import por la consulta real, no rehacer
-la vista**. **No añadas dependencias nuevas hacia `lib/mock/`**; al conectar
-una pantalla, elimina el mock que se quede sin consumidores.
+**`lib/mock/` ya no existe.** La última pantalla que leía de ahí era
+`objetivos`, y el Sprint 6 la conectó; `egresos.ts` se fue con ella —estaba
+huérfano desde antes del Sprint 4, nunca tuvo pantalla—. Si `docs/plan.md` o
+`docs/DIRECTRICES_DISENO.md` mandan a la carpeta, describen la maqueta, no el
+código de hoy: **no la recrees**. Toda pantalla consulta la base.
 
 Pendientes conocidos:
 - Cerrar el onboarding deja **dos eventos `plan_generado`** seguidos: la foto
@@ -284,9 +313,15 @@ Pendientes conocidos:
   después de las 7 p.m. en Colombia guarda el día siguiente. Hoy nadie lo
   muestra —el dashboard usa `PlanIa.createdAt`— pero si se pinta, hay que
   arreglarlo antes.
-- **La barra fija de móvil (§6.7) sigue sin verse en navegador.** Es lo único
-  del área de usuario que nadie ha comprobado en pantalla; mírala a 375px antes
-  del QA del Sprint 7.
+- **La barra fija de móvil (§6.7) sigue sin verse en navegador**, y la pantalla
+  de objetivos tampoco. Es lo que queda del área de usuario sin comprobar en
+  pantalla; míralas a 375px antes del QA del Sprint 7.
+- **El aviso de plan desactualizado solo mira cifras.** `datos.ts` compara
+  capacidad y deuda, así que cerrar una intención o editarla deja el plan
+  aconsejando sobre una meta que ya no está, sin avisar. No es urgente —el
+  siguiente check-in lo recalibra— pero si alguien quiere cerrarlo, la señal
+  barata es comparar `PlanIa.createdAt` con el evento `objetivo_logrado` más
+  reciente.
 - `app/(dashboard)/estilo/` es una página de desarrollo; se elimina antes de
   producción.
 - `GET /api/admin/usuarios` no existe a propósito: la página consulta la base

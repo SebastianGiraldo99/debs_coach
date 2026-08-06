@@ -7,9 +7,11 @@ import type {
 /**
  * Textos visibles de los enums del schema.
  *
- * Vive aquí y no en `lib/mock/` porque los formularios de producción los
- * necesitan: hacer que dependan de datos falsos ataba código real a código
- * desechable, y bastaba borrar un mock para romper el onboarding.
+ * Vivió siempre aquí y no con los mocks de la maqueta porque los formularios
+ * de producción los necesitan: hacer que dependan de datos falsos ataba código
+ * real a código desechable. Los mocks ya se borraron —la última pantalla que
+ * leía de ellos, `objetivos`, quedó conectada en el Sprint 6—; estas etiquetas
+ * siguen en pie porque nunca fueron una de ellos.
  *
  * Los tipos vienen de `@prisma/client`, así que si mañana se agrega un valor
  * al enum del schema, TypeScript exige la etiqueta aquí y no se cuela una
