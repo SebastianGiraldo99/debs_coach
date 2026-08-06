@@ -6,9 +6,10 @@ import type { Moneda } from "@/lib/formato"
  * El contrato del plan: lo único que la app acepta como salida del Motor IA.
  *
  * La forma NO es la que describe `docs/plan.md` (`mensaje_motivacional`,
- * `plan_pagos[]`…). Es la que ya renderizan `components/dashboard/` sobre
- * `lib/mock/plan.ts`: `siguientePaso`, `pasos[]`, `mensaje`. El mock es el
- * contrato visual y las vistas no se rehacen, así que es el JSON el que se
+ * `plan_pagos[]`…). Es la que renderizan `components/dashboard/`:
+ * `siguientePaso`, `pasos[]`, `mensaje`. Salió del mock visual que existía
+ * antes que el motor —ya borrado, porque la pantalla lee datos reales— y se
+ * conservó tal cual: las vistas no se rehacen, así que es el JSON el que se
  * adapta a la pantalla y no al revés.
  *
  * Diferencia deliberada con la propuesta del plan: la IA no devuelve
@@ -112,8 +113,8 @@ export type PlanGuardado = {
 
 /**
  * Numeración de los pasos: el siguiente paso es el 1 aunque viva en su propio
- * campo, así que la lista arranca en `paso_02`. Coincide con `lib/mock/plan.ts`
- * a propósito — conectar la pantalla debe ser cambiar el import, nada más.
+ * campo, así que la lista arranca en `paso_02`. Los ids no se muestran: existen
+ * para que React tenga una `key` estable al repintar la lista.
  */
 export function normalizarPlan(
   respuesta: RespuestaIa,
