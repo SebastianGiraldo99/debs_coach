@@ -143,8 +143,52 @@ model Usuario {
   checkIns       CheckIn[]
   planesIa       PlanIa[]
   eventos        Evento[]
+  sesiones       Sesion[]
 
   @@map("usuarios")
+}
+
+/// La mitad con estado de la sesión (RNF-002): el refresh token de 7 días.
+///
+/// El JWT de acceso dura 24 h y no se guarda en ningún sitio —es stateless y
+/// por eso no se puede revocar—. Esta tabla es lo que hace revocable a la
+/// sesión completa: al cerrar sesión se marca aquí, y sin refresh vivo el
+/// acceso muere como mucho 24 h después.
+model Sesion {
+  id        String   @id @default(uuid())
+  usuarioId String   @map("usuario_id")
+
+  /// SHA-256 del token, nunca el token. Un volcado de la base no da sesiones:
+  /// a diferencia de las invitaciones —que sin la aprobación del admin no
+  /// abren nada—, este token SÍ es acceso inmediato a la cuenta.
+  ///
+  /// SHA-256 y no argon2: el token son 32 bytes aleatorios, no una contraseña
+  /// que alguien pueda adivinar, y hay que verificarlo en cada rotación.
+  tokenHash String   @unique @map("token_hash")
+
+  /// Todas las rotaciones de un mismo inicio de sesión comparten familia. Si
+  /// aparece un token ya rotado —señal de que alguien copió la cookie— se
+  /// revoca la familia entera, no solo esa fila: el ladrón y la víctima están
+  /// en la misma cadena y no hay forma de saber cuál es cuál.
+  familia   String
+
+  expiraEn  DateTime @map("expira_en")
+
+  /// Cuándo se canjeó por su sucesor. Con valor, la fila ya no sirve para
+  /// autenticar; se conserva porque es lo que permite detectar la reutilización.
+  rotadaEn  DateTime? @map("rotada_en")
+
+  /// Cierre de sesión explícito o revocación por reutilización.
+  revocadaEn DateTime? @map("revocada_en")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  usuario Usuario @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+
+  @@index([usuarioId])
+  @@index([familia])
+  @@index([expiraEn])
+  @@map("sesiones")
 }
 
 model Objetivo {

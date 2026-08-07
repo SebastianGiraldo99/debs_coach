@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { z } from "zod"
 
 import { exigirAdmin } from "@/lib/auth/api"
+import { revocarSesionesDe } from "@/lib/auth/refresco"
 import { prisma } from "@/lib/db/prisma"
 import { enviarAprobacion } from "@/lib/email/resend"
 
@@ -92,6 +93,14 @@ export async function PATCH(
     where: { id },
     data: { estado: nuevoEstado },
   })
+
+  // Bloquear tiene que cortar también las sesiones abiertas. El DAL ya le
+  // niega los datos —relee el estado en cada acceso—, pero dejarle el refresh
+  // vivo significa que, si mañana lo desbloquean, entra sin volver a
+  // autenticarse. Bloquear es "fuera", y fuera es fuera.
+  if (accion === "bloquear") {
+    await revocarSesionesDe(id)
+  }
 
   // El correo solo se manda al aprobar. Desbloquear también deja la cuenta
   // activa, pero avisar de una "aprobación" que el usuario ya vivió sería

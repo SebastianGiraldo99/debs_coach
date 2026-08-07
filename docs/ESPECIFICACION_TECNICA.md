@@ -212,7 +212,7 @@ Aplicación web responsive con autenticación, formularios de ingreso de datos, 
 
 | ID | Categoría | Requerimiento |
 |---|---|---|
-| RNF-001 | **Seguridad** | Las contraseñas se almacenan con bcrypt (salt rounds ≥ 12) |
+| RNF-001 | **Seguridad** | Las contraseñas se almacenan con argon2id (ver nota) |
 | RNF-002 | **Seguridad** | Las sesiones usan JWT con expiración de 24 horas + refresh token de 7 días |
 | RNF-003 | **Seguridad** | Toda comunicación usa HTTPS (certificado SSL via Let's Encrypt en Nginx) |
 | RNF-004 | **Seguridad** | La API Key de OpenAI y credenciales de DB nunca se exponen al cliente |
@@ -226,6 +226,23 @@ Aplicación web responsive con autenticación, formularios de ingreso de datos, 
 | RNF-012 | **Mantenibilidad** | Variables de entorno para todas las credenciales externas (OpenAI, Resend, DB) |
 | RNF-013 | **Mantenibilidad** | El proveedor de IA es intercambiable vía variable de entorno sin cambios de código |
 | RNF-014 | **Observabilidad** | Errores de llamadas a la IA quedan logueados en servidor con contexto suficiente para debug |
+
+**Nota sobre RNF-001 — argon2id en lugar de bcrypt.** La versión original de este
+requerimiento pedía bcrypt con ≥ 12 rondas. Se implementó con **argon2id**
+(`lib/auth/password.ts`), que es lo que hoy recomienda OWASP para contraseñas
+nuevas: bcrypt trunca en 72 bytes y solo endurece contra CPU, mientras que
+argon2id se parametriza además en memoria y paralelismo, que es lo que encarece
+el crackeo con GPU. No es un cambio de alcance ni de coste —la librería
+`argon2` ya estaba en el proyecto— y el requerimiento se da por cumplido con el
+algoritmo más fuerte. Queda escrito aquí para que el checklist de QA no lo
+marque como desviación pendiente.
+
+**Nota sobre RNF-002 — dónde vive el refresh token.** El JWT de acceso (24 h)
+viaja en la cookie `coach_session` y es **stateless**. El refresh (7 días) es un
+token opaco en la cookie `coach_refresh`, guardado **hasheado** en la tabla
+`sesiones`: rota en cada uso y su reutilización revoca la familia entera. Esa
+mitad con estado es lo que permite un cierre de sesión real —un JWT no se puede
+revocar— y lo que convierte el robo de una cookie en un incidente detectable.
 
 ---
 

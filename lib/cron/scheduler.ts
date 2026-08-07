@@ -1,16 +1,18 @@
 import cron from "node-cron"
 
+import { limpiarSesionesVencidas } from "@/lib/auth/refresco"
 import { enviarRecordatoriosPendientes } from "@/lib/cron/recordatorios"
 
 /**
- * El planificador de tareas del servidor. Hoy solo hay una: el recordatorio
- * de check-in (RF-028).
+ * El planificador de tareas del servidor: el recordatorio de check-in (RF-028)
+ * y la limpieza de sesiones vencidas (RNF-002).
  *
- * OJO CON EL DESPLIEGUE — esto corre **una vez por proceso**. Con PM2 en modo
- * cluster habría un planificador por instancia y cada usuario recibiría tantos
- * correos como instancias haya. Por eso `ecosystem.config.js` fija
- * `exec_mode: "fork"` e `instances: 1`, y cambiarlo falla en silencio: nadie
- * se entera hasta que alguien recibe el mismo correo tres veces.
+ * OJO CON EL DESPLIEGUE — esto corre **una vez por proceso**. Con más de una
+ * instancia de la app habría un planificador por instancia y cada usuario
+ * recibiría tantos correos como instancias haya. Por eso el `compose.yaml`
+ * lleva una sola réplica y lo dice en un comentario: escalarlo falla en
+ * silencio, y nadie se entera hasta que alguien recibe el mismo correo tres
+ * veces.
  *
  * El trabajo corre todos los días, no cada quince: quién está vencido lo
  * decide la consulta mirando la fecha del último check-in de cada persona. Un
@@ -50,9 +52,18 @@ export function iniciarPlanificador(): void {
         // no vale una caída: mañana se reintenta.
         console.error("[cron] El trabajo de recordatorios falló:", error)
       }
+
+      // En su propio try: que la limpieza reviente no puede impedir los
+      // correos, ni al revés. Son dos trabajos que comparten horario, nada más.
+      try {
+        const borradas = await limpiarSesionesVencidas()
+        if (borradas > 0) console.log(`[cron] Sesiones vencidas borradas: ${borradas}.`)
+      } catch (error) {
+        console.error("[cron] La limpieza de sesiones falló:", error)
+      }
     },
     { timezone: ZONA },
   )
 
-  console.log(`[cron] Recordatorios de check-in programados (${EXPRESION}, ${ZONA}).`)
+  console.log(`[cron] Trabajos diarios programados (${EXPRESION}, ${ZONA}).`)
 }
