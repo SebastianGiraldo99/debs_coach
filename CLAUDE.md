@@ -15,7 +15,8 @@ Todo el código —identificadores, comentarios, mensajes de error— va en
 |---|---|
 | `docs/ESPECIFICACION_TECNICA.md` | Qué hace. Fuente de verdad de RF/RNF. Cita los RF con cuidado: el numerado no es intuitivo (RF-001 es *invitar*, RF-004 es *iniciar sesión*). |
 | `docs/DIRECTRICES_DISENO.md` | Cómo se ve y cómo se escribe. §19 es el tono de voz. |
-| `docs/plan.md` | En qué orden. **Parcialmente desactualizado** — ver más abajo. |
+| `docs/plan.md` | En qué orden. **Parcialmente desactualizado** — ver más abajo. Su Sprint 7 (PM2, Nginx, PostgreSQL en el host) quedó sustituido por Docker. |
+| `docs/OPERACIONES.md` | Cómo se despliega, se actualiza y se restaura. Se lee con la app caída. |
 
 ## Cambios de ruptura ya verificados
 
@@ -45,10 +46,11 @@ Descubiertos ejecutando, no leyendo. `AGENTS.md` tiene razón: consulta
 
 No las confundas:
 
-- **`proxy.ts`** — comprobación **optimista**. Solo lee el JWT de la cookie.
-  Cero consultas a la base: corre en cada request, incluidos los prefetch, y la
-  doc de Next lo desaconseja como capa de autorización. Su matcher **excluye
-  `/api`**.
+- **`proxy.ts`** — comprobación **optimista**. Lee el JWT de la cookie y no
+  consulta la base para autorizar: corre en cada request, incluidos los
+  prefetch, y la doc de Next lo desaconseja como capa de autorización. Su
+  matcher **excluye `/api`**. La única consulta que se permite es la del
+  refresco, y solo cuando el acceso ya venció (ver "La sesión").
 - **`lib/auth/dal.ts`** — la autorización **real**, pegada a los datos y
   memorizada con `cache()` de React. Un JWT sigue siendo válido 24 h aunque el
   admin haya bloqueado la cuenta hace un minuto, así que el estado se relee de
@@ -59,6 +61,40 @@ No las confundas:
 
 **Regla que no se rompe:** el `usuarioId` sale **siempre** de la sesión, nunca
 del cuerpo ni de la URL.
+
+## La sesión — dos cookies (RNF-002)
+
+`coach_session` es el JWT de acceso: 24 h, stateless, se verifica sin tocar la
+base. `coach_refresh` es un token opaco de 7 días que sí existe en la tabla
+`sesiones`, guardado hasheado con SHA-256. Esa mitad con estado es lo que hace
+revocable a la sesión —un JWT no se puede retirar— y vive en
+`lib/auth/refresco.ts`.
+
+- **El refresh rota en cada uso** y las rotaciones comparten `familia`. Que
+  aparezca un token ya rotado significa que hay dos copias en circulación, así
+  que se revoca **la familia entera**: no hay forma de saber cuál de las dos es
+  el ladrón, y echar a los dos deja al dueño volviendo a entrar con su
+  contraseña.
+- **Hay una ventana de gracia de 60 s** para esa detección. Sin ella, dos
+  peticiones en paralelo del mismo navegador —una navegación y su prefetch—
+  canjean el mismo token y la segunda parecería un robo. Dentro de la ventana
+  se emite otro token sin revocar nada.
+- **El vencimiento NO se recalcula al rotar.** La sesión caduca a los 7 días de
+  su inicio; si cada rotación lo empujara, una pestaña abierta la renovaría
+  para siempre y el plazo no significaría nada.
+- **El refresco solo puede ocurrir en dos sitios**, porque son los únicos que
+  pueden escribir cookies: `proxy.ts` para las páginas y `exigirUsuario()` de
+  `lib/auth/api.ts` para las rutas de API —que el matcher del proxy excluye—.
+  Durante el render de un Server Component escribir una cookie es un error de
+  Next, así que el DAL nunca refresca: lee lo que el proxy ya dejó.
+- En `lib/auth/api.ts` el refresco va **antes** de `usuarioActual()`: esa
+  función está memorizada con `cache()` y un `null` resuelto antes se quedaría
+  fijo para todo el request.
+- **Bloquear a alguien revoca sus sesiones.** El DAL ya le negaba los datos,
+  pero dejarle el refresh vivo significaría que al desbloquearlo entra sin
+  volver a autenticarse.
+- El cron diario borra lo vencido. Las revocadas se van con un día de retraso:
+  si la revocación fue por robo, ese día es el único rastro de lo que pasó.
 
 ## El Motor IA
 
@@ -206,6 +242,31 @@ dinámica y solo bajo `NEXT_RUNTIME === "nodejs"`: un import estático arrastrar
 - Para probarlo sin esperar: `RESEND_API_KEY= npm run script --
   scripts/probar-recordatorios.mts --vencer <email>`.
 
+## El contenedor
+
+`Dockerfile` + `compose.yaml`, con el Nginx del host delante. La operación
+entera está en `docs/OPERACIONES.md`; aquí solo lo que muerde si se toca.
+
+- **`output: "standalone"` en `next.config.ts`.** La imagen final no lleva
+  `node_modules` completos. El precio: `public/` y `.next/static/` **no se
+  copian solos** —lo dice la doc de Next— y el Dockerfile lo hace a mano. Si se
+  quitan esas dos líneas, la app sirve HTML sin CSS y nadie ve un error.
+- **Debian slim, no Alpine.** `argon2` es nativo y sus binarios precompilados
+  son para glibc; en musl habría que compilarlo en cada build.
+- **Las migraciones son un servicio aparte** (`migraciones`), construido con la
+  etapa `constructor` porque la imagen final no lleva el CLI de Prisma. La app
+  espera a que termine bien: una migración rota detiene el despliegue en vez de
+  dejar la app viva contra un schema que no le corresponde.
+- **La app publica solo en `127.0.0.1:3000`.** El único que debe alcanzarla es
+  el Nginx del host; en `0.0.0.0` sería accesible por IP saltándose el HTTPS y
+  las cabeceras de seguridad.
+- **`/api/salud` no toca la base a propósito.** Si Postgres parpadea, lo que
+  hay que arreglar es Postgres; reiniciar una app sana alarga el corte. Nginx
+  además lo devuelve como 404 hacia fuera.
+- El `.dockerignore` excluye `.env` en primer lugar: los secretos entran por
+  `env_file` en runtime, nunca horneados en una capa —de donde saldrían con un
+  `docker history`—.
+
 **Scripts que importan módulos de la app** necesitan `npm run script --
 scripts/<archivo>.mts`. El type stripping de Node deja los `import` tal cual y
 el alias `@/` le llega como si fuera un paquete de npm; `scripts/alias.mjs` es
@@ -222,7 +283,8 @@ el hook de resolución que lo arregla.
 | 4 — Dashboard e ingreso extra | ✅ dashboard, deudas e ingresos sobre datos reales; probado end-to-end |
 | 5 — Check-in y cron | ✅ flujo, API, progreso por objetivo y recordatorio; probado contra la base |
 | 6 — Objetivos | ✅ CRUD de intenciones, candado de 30 días y cierre; probado contra la base |
-| 7 — QA y despliegue | ⬜ **siguiente** |
+| 7 — Sesión y contenedor | 🟨 refresh token probado contra la base; el Docker está escrito pero **sin construir** |
+| 8 — QA y puesta en producción | ⬜ **siguiente** |
 
 ### Las pruebas manuales: hechas, y lo que salieron de ellas
 
@@ -260,16 +322,19 @@ alcanza para probar la pantalla sin gastar tokens.
 
 ### Decisiones ya tomadas — no las reabras
 
-**El recordatorio quincenal va con `node-cron` y PM2 en modo `fork`
+**El recordatorio quincenal va con `node-cron` dentro del proceso de la app
 (RF-028).** `docs/plan.md` lo pide en `instrumentation.ts` y la ETR nombra
 `node-cron` en su diagrama de arquitectura, así que no es un detalle de
 implementación sino arquitectura escrita. La trampa: ese hook corre **una vez
-por proceso**, de modo que con PM2 en cluster el correo sale tantas veces como
-instancias haya. Por eso el Sprint 7 **tiene que fijar `exec_mode: "fork"` e
-`instances: 1`** en `ecosystem.config.js`, y dejarlo dicho ahí en un
-comentario: con 11 usuarios como máximo una instancia sobra, y cambiarlo a
-cluster fallaría en silencio —nadie se entera hasta que alguien recibe el
-mismo correo tres veces—.
+por proceso**, de modo que con dos instancias el correo sale por duplicado. Por
+eso `compose.yaml` lleva **una sola réplica** y lo dice en un comentario: con 11
+usuarios como máximo una instancia sobra, y escalarlo fallaría en silencio
+—nadie se entera hasta que alguien recibe el mismo correo tres veces—.
+
+**PM2 se descartó: la app va en Docker.** `docs/plan.md` y la ETR describen un
+despliegue con PM2 y PostgreSQL instalado en el host; el VPS real ya corre todo
+en contenedores, así que el despliegue es `compose.yaml` + el Nginx del host, y
+`ecosystem.config.js` no existe ni hace falta.
 
 **El botón de ingreso extra ya está fijo al fondo en móvil (§6.7).** Vive en
 `components/dashboard/accion-ingreso-extra.tsx`, que exporta las dos piezas:
@@ -279,14 +344,13 @@ porque Radix admite un solo `DialogTrigger`; solo una está visible a la vez. La
 barra lleva delante un hueco de su mismo alto, porque `fixed` sale del flujo y
 si no tapa lo último de la página.
 
-### Decisión abierta — la decide el usuario
-
-**Dónde vive Postgres en producción (Sprint 7).** `docs/plan.md` manda
-instalar PostgreSQL local en el VPS y ajustar `pg_hba.conf`. Pero **ya corre
-en Docker en ese VPS** —es contra lo que se desarrolla por el túnel SSH— así
-que el plan describe un servidor que no es el que existe. Antes de desplegar
-hay que decidir si se usa el contenedor que ya está o se levanta otro, y
-rehacer los pasos 2 y 3 del Sprint 7 en consecuencia.
+**Postgres en producción: el `shared_postgres` que ya existe.** Era la decisión
+abierta del Sprint 7 y la cerró el usuario. La app se une a la red externa
+`shared_net` y apunta a `shared_postgres:5432`; no se levanta una base nueva ni
+se migran datos, solo se crean el usuario `coach_app` y la base
+`coach_financiero` dentro del contenedor que ya está. Los pasos 2 y 3 del
+Sprint 7 de `docs/plan.md` —instalar PostgreSQL en el host, tocar
+`pg_hba.conf`— **no aplican**.
 
 **Aclaración de algo que NO es una duda:** RF-029 fija **tres preguntas**
 —pagos, nuevas deudas, ingresos extra— y el "paso 4" que describe
@@ -305,6 +369,13 @@ huérfano desde antes del Sprint 4, nunca tuvo pantalla—. Si `docs/plan.md` o
 código de hoy: **no la recrees**. Toda pantalla consulta la base.
 
 Pendientes conocidos:
+- **La imagen de Docker nunca se ha construido.** No hay Docker en la máquina
+  de desarrollo, así que `Dockerfile` y `compose.yaml` están escritos y
+  razonados pero sin ejecutar. Lo que sí se probó, y es la parte que más
+  fácilmente se rompe, es la salida `standalone`: arranca, sirve las páginas y
+  los estáticos —tras copiar `public/` y `.next/static/` a mano, como hace el
+  Dockerfile— y el planificador del cron se programa dentro de ella. El primer
+  `docker compose up --build` es del Sprint 8.
 - Cerrar el onboarding deja **dos eventos `plan_generado`** seguidos: la foto
   inicial que escribe `/api/onboarding/completar` (sin `planIaId`, con las
   cifras de partida) y el plan de verdad. Al pintar el historial hay que

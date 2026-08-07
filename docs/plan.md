@@ -256,37 +256,57 @@ Permite manejar hasta 3 intenciones (RF-022 a RF-027, HU-005).
 
 ---
 
-## Sprint 7 — QA, Deployment y Scripts Utilitarios (Día 15+)
+## Sprint 7 — Sesión completa y contenedor (Día 15)
 
-Cierre y puesta en producción.
+Dos cosas que el plan original daba por hechas y no lo estaban: la mitad
+revocable de la sesión y un despliegue que se parezca al VPS real.
 
-**Tareas QA:**
-1. Recorrido manual del checklist de "Criterios de Aceptación del Proyecto" del ETR (16 ítems).
-2. Pruebas de seguridad IDOR: con usuario A logueado, intentar `GET /api/deudas?usuarioId=B` u otras manipulaciones de URL. Verificar 403/404.
-3. Verificar responsive en 375px, 768px, 1280px.
-4. Verificar que admin nunca puede listar datos financieros (solo metadatos de usuarios).
+**Tareas de sesión (RNF-002):**
+1. Modelo `Sesion` + migración: token hasheado, familia, vencimiento, marcas de rotación y revocación.
+2. `lib/auth/refresco.ts`: emitir, rotar con detección de reutilización, revocar familia, limpiar vencidas.
+3. Conectarlo en `proxy.ts` (páginas) y en `exigirUsuario()` (API, que el proxy no cubre). Login emite, logout revoca, bloquear un usuario revoca.
+4. Limpieza diaria de sesiones vencidas dentro del planificador que ya existe.
 
-**Tareas deployment al VPS:**
-1. En el VPS: instalar Node 24 vía nvm, clonar repo, crear `.env` de producción.
-2. Configurar PostgreSQL local: crear usuario + DB, ajustar `pg_hba.conf` para acceso local solo.
-3. Correr `npx prisma migrate deploy` + `npx prisma db seed` (con `ADMIN_EMAIL/PASSWORD` de prod).
-4. Build: `npm run build`.
-5. Instalar PM2 globalmente. Crear `ecosystem.config.js` con app `coach-financiero` apuntando a `npm start`. Arrancar con `pm2 start` + `pm2 save` + `pm2 startup`.
-6. Configurar Nginx: crear `/etc/nginx/sites-available/coach-financiero.conf` con reverse proxy a `localhost:3000`, redirección HTTPS, headers de seguridad (HSTS, X-Frame-Options, X-Content-Type-Options).
-7. SSL con Let's Encrypt: `certbot --nginx -d tudominio.com`.
-8. Smoke test desde un navegador externo.
+**Tareas de contenedor:**
+1. `output: "standalone"` en `next.config.ts`.
+2. `Dockerfile` en tres etapas —dependencias, constructor, ejecución— sobre Debian slim, con usuario sin privilegios.
+3. `compose.yaml`: servicio `migraciones` que corre `prisma migrate deploy` y termina, y servicio `app` que solo arranca si aquel salió bien. Publica en `127.0.0.1:3000`, una sola réplica, logs rotados.
+4. `.dockerignore` que excluya `.env` antes que nada.
+5. `GET /api/salud` para la sonda del contenedor, sin tocar la base.
+6. `deployment/nginx.conf.example` con HSTS y cabeceras de seguridad (RNF-003).
+7. Scripts de operación: `backup-db.sh` y `restore-db.sh` contra el contenedor de Postgres, y `limpiar-invitaciones.mts`.
+8. `docs/OPERACIONES.md`: primer despliegue, actualización, logs, respaldos, tareas periódicas.
 
-**Scripts utilitarios:**
-1. **`scripts/backup-db.sh`** → `pg_dump coach_financiero | gzip > /var/backups/coach/coach-$(date +%F).sql.gz`, retención 30 días. Agregar al cron del VPS: `0 3 * * * /opt/coach/scripts/backup-db.sh`.
-2. **`scripts/restore-db.sh`** → recibe path al `.sql.gz` y restaura.
-3. **`scripts/limpiar-invitaciones.ts`** → marca como `expirado` las invitaciones vencidas. Correr semanalmente.
-4. **Logs:** configurar PM2 con `pm2 install pm2-logrotate`, rotación diaria, retención 14 días. Documentar en `README.md` cómo ver logs (`pm2 logs coach-financiero`).
-5. **Documentación de operación** en `docs/OPERACIONES.md`: cómo deployar updates, cómo restaurar backup, cómo agregar el primer admin, cómo monitorear.
+**Nota importante:** este sprint sustituye el despliegue con PM2 y PostgreSQL
+en el host que describía la versión anterior de este documento. El VPS ya corre
+todo en contenedores y la base es el `shared_postgres` que ya existe; no se
+instala PostgreSQL ni se toca `pg_hba.conf`.
 
 **Archivos creados:**
-- `ecosystem.config.js`, `scripts/{backup-db.sh,restore-db.sh,limpiar-invitaciones.ts}`
-- `docs/OPERACIONES.md`
-- Config externa al repo: `/etc/nginx/sites-available/coach-financiero.conf` (template versionado en `deployment/nginx.conf.example`)
+- `Dockerfile`, `compose.yaml`, `.dockerignore`, `deployment/nginx.conf.example`
+- `prisma/migrations/*_sesiones_refresh/`, `lib/auth/refresco.ts`, `app/api/salud/route.ts`
+- `scripts/{backup-db.sh,restore-db.sh,limpiar-invitaciones.mts}`, `docs/OPERACIONES.md`
+
+---
+
+## Sprint 8 — QA y puesta en producción (Día 16+)
+
+**Tareas QA:**
+1. Recorrido manual del checklist de "Criterios de Aceptación del Proyecto" del ETR (son 10 ítems, no 16 como decía este documento).
+2. Pruebas de seguridad IDOR: con usuario A logueado, intentar manipular ids ajenos en `/api/deudas/[id]`, `/api/ingresos/[id]` y `/api/objetivos/[id]`. Verificar 404.
+3. Verificar responsive en 375px, 768px, 1280px — incluidas la barra fija de móvil (§6.7) y la pantalla de objetivos, que son lo único que nadie ha visto en navegador.
+4. Verificar que el admin nunca puede listar datos financieros (solo metadatos de usuarios).
+5. Verificar el ciclo de sesión en navegador: cerrar sesión, volver a los 25 h y comprobar que entra sin re-autenticarse.
+
+**Puesta en producción:**
+1. Instalar Docker y git en el VPS si faltaran; clonar en `/opt/coach`.
+2. Crear usuario y base dentro de `shared_postgres`, y el `.env` de producción.
+3. `docker compose up -d --build` y `docker compose run --rm migraciones npx prisma db seed`.
+4. Nginx + certbot con la plantilla versionada.
+5. Cron del host para el respaldo diario.
+6. Smoke test desde un navegador externo y primera invitación real.
+
+Todo el detalle está en `docs/OPERACIONES.md`; aquí solo queda el orden.
 
 ---
 

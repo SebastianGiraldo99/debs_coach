@@ -1,0 +1,74 @@
+# ──────────────────────────────────────────────────────────────────────────────
+# Coach Financiero — despliegue en el VPS.
+#
+#   docker compose up -d --build
+#
+# La base NO está aquí: se usa el `shared_postgres` que ya corre en este VPS,
+# alcanzable por la red `shared_net`. Por eso `DATABASE_URL` apunta a
+# `shared_postgres:5432` (ver .env.example) y no a un servicio de este archivo.
+#
+# El HTTPS tampoco: lo termina el Nginx del host, que hace de reverse proxy
+# contra 127.0.0.1:3000 (RNF-003). Ver deployment/nginx.conf.example.
+# ──────────────────────────────────────────────────────────────────────────────
+
+name: coach-financiero
+
+services:
+  # Corre `prisma migrate deploy` y se muere. La app no arranca hasta que esto
+  # termina bien, así que un despliegue con una migración rota se detiene aquí
+  # en vez de dejar la app viva contra un schema que no le corresponde.
+  #
+  # Usa la etapa `constructor` porque la imagen final no lleva el CLI de Prisma:
+  # son 40 MB de herramienta que en runtime no se usan nunca.
+  migraciones:
+    build:
+      context: .
+      target: constructor
+    command: npx prisma migrate deploy
+    env_file: .env
+    networks: [shared_net]
+    restart: "no"
+
+  app:
+    build:
+      context: .
+      target: ejecucion
+    env_file: .env
+    # Solo en loopback: el único que debe poder hablar con la app es el Nginx
+    # del host. Publicarlo en 0.0.0.0 lo dejaría accesible por IP saltándose el
+    # HTTPS y los headers de seguridad.
+    ports:
+      - "127.0.0.1:3000:3000"
+    networks: [shared_net]
+    restart: unless-stopped
+    depends_on:
+      migraciones:
+        condition: service_completed_successfully
+    # ⚠️ UNA SOLA RÉPLICA, SIEMPRE. El planificador de `instrumentation.ts`
+    # corre una vez por proceso: con dos contenedores, cada usuario recibiría
+    # el recordatorio de check-in por duplicado (RF-028). Escalar esto no da
+    # ningún error — solo correos repetidos que nadie relaciona con el cambio.
+    # Con 11 usuarios como máximo, una instancia sobra.
+    deploy:
+      replicas: 1
+    healthcheck:
+      # No toca la base a propósito: si Postgres parpadea, lo que hay que
+      # arreglar es Postgres, no reiniciar una app que está perfectamente viva.
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/api/salud').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    logging:
+      # Sin esto los logs del contenedor crecen sin techo hasta llenar el disco
+      # del VPS, que es la forma más tonta de tumbar la app.
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+networks:
+  # La crea quien levantó `shared_postgres`, no este compose. Si no existe:
+  #   docker network create shared_net
+  shared_net:
+    external: true

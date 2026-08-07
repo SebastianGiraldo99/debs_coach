@@ -1,0 +1,24 @@
+# Lo que no debe entrar al contexto de build.
+#
+# El .env es el primero de la lista: los secretos llegan al contenedor por
+# `env_file` en tiempo de ejecución, nunca horneados en una capa de la imagen
+# —de donde cualquiera que tenga la imagen podría sacarlos con `docker history`.
+
+.env
+.env.*
+!.env.example
+
+node_modules
+.next
+.git
+.gitignore
+.claude
+
+# Basura de macOS e iCloud: el proyecto vive en ~/Documents y aparecen
+# duplicados "… 2.ts" que rompen el typecheck dentro de la imagen.
+.DS_Store
+**/* 2.*
+
+npm-debug.log*
+*.tar.gz
+*.sql.gz

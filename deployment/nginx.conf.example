@@ -1,0 +1,88 @@
+# Coach Financiero — reverse proxy del host (RNF-003).
+#
+# Plantilla. En el VPS va en /etc/nginx/sites-available/coach-financiero.conf
+# con un enlace en sites-enabled/, y NO se versiona con el dominio real
+# rellenado: este archivo es lo que se copia, no lo que corre.
+#
+#   sudo cp deployment/nginx.conf.example /etc/nginx/sites-available/coach-financiero.conf
+#   sudo sed -i 's/TU_DOMINIO/coach.tudominio.com/g' /etc/nginx/sites-available/coach-financiero.conf
+#   sudo ln -s /etc/nginx/sites-available/coach-financiero.conf /etc/nginx/sites-enabled/
+#   sudo nginx -t && sudo systemctl reload nginx
+#   sudo certbot --nginx -d coach.tudominio.com
+#
+# Certbot reescribe este archivo al emitir el certificado: añade el bloque 443
+# con sus rutas y deja el 80 redirigiendo. Lo de abajo es el punto de partida.
+
+server {
+    listen 80;
+    listen [::]:80;
+    server_name TU_DOMINIO;
+
+    # Certbot necesita servir el reto ACME por HTTP; todo lo demás se va a
+    # HTTPS. Sin esta excepción la renovación automática falla a los 90 días,
+    # que es justo cuando nadie está mirando.
+    location /.well-known/acme-challenge/ {
+        root /var/www/html;
+    }
+
+    location / {
+        return 301 https://$host$request_uri;
+    }
+}
+
+server {
+    listen 443 ssl;
+    listen [::]:443 ssl;
+    http2 on;
+    server_name TU_DOMINIO;
+
+    # ─── Certificados ───────────────────────────────────────────────────────
+    # Las rellena certbot. Si se editan a mano, ojo: apuntan al symlink
+    # `live/`, que es el que rota en cada renovación.
+    ssl_certificate     /etc/letsencrypt/live/TU_DOMINIO/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/TU_DOMINIO/privkey.pem;
+    include /etc/letsencrypt/options-ssl-nginx.conf;
+    ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
+
+    # ─── Cabeceras de seguridad ─────────────────────────────────────────────
+    # HSTS: un año, y `always` para que también salga en las respuestas de
+    # error. Sin `always`, un 502 llega sin la cabecera y ese es justo el
+    # momento en que un atacante querría degradar la conexión a HTTP.
+    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+    # La app no se embebe en ningún sitio: nadie tiene por qué ponerla en un
+    # iframe, y prohibirlo cierra el clickjacking de un plumazo.
+    add_header X-Frame-Options "DENY" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+    # No hay cámara, micrófono ni geolocalización en toda la app.
+    add_header Permissions-Policy "camera=(), microphone=(), geolocation=()" always;
+
+    # El plan de la IA puede tardar hasta 45 s (el timeout del motor). Con el
+    # 60 por defecto de Nginx iría justo; 90 deja margen para que el error que
+    # vea el usuario sea el de la app —que sabe explicarlo— y no un 504 mudo.
+    proxy_read_timeout 90s;
+
+    # Los formularios de la app son texto. Un cuerpo de más de 1 MB no es un
+    # caso de uso, es alguien probando.
+    client_max_body_size 1m;
+
+    location / {
+        # El contenedor publica SOLO en loopback (ver compose.yaml), así que
+        # este es el único camino de entrada a la aplicación.
+        proxy_pass http://127.0.0.1:3000;
+        proxy_http_version 1.1;
+
+        proxy_set_header Host              $host;
+        proxy_set_header X-Real-IP         $remote_addr;
+        proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header Upgrade           $http_upgrade;
+        proxy_set_header Connection        "upgrade";
+    }
+
+    # La sonda del contenedor no tiene por qué ser pública: la usa Docker desde
+    # dentro, no internet.
+    location /api/salud {
+        return 404;
+    }
+}
