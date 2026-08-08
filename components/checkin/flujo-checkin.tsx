@@ -77,6 +77,17 @@ export function FlujoCheckin({
 
   const totalPagado = Object.values(pagos).reduce<number>((suma, v) => suma + (v ?? 0), 0)
 
+  /**
+   * Con deudas activas y sin un solo abono anotado no se pasa del paso 1.
+   *
+   * La condición lleva `deudas.length > 0` por fuerza: quien no tiene deudas no
+   * tiene dónde escribir una cifra, y sin esa parte el check-in sería un
+   * callejón sin salida para justo la persona a la que le va bien —además de
+   * que su fecha de próximo check-in no avanzaría nunca y el cron le mandaría
+   * recordatorios para siempre—.
+   */
+  const sinAbonos = deudas.length > 0 && totalPagado === 0
+
   async function terminar() {
     setError(null)
     setEnviando(true)
@@ -201,7 +212,9 @@ export function FlujoCheckin({
         botonera={
           <>
             {botonAtras}
-            <Button onClick={() => setPaso(2)}>Continuar</Button>
+            <Button onClick={() => setPaso(2)} disabled={sinAbonos}>
+              Continuar
+            </Button>
           </>
         }
       >
@@ -234,6 +247,15 @@ export function FlujoCheckin({
                 {formatearMoneda(totalPagado, moneda)}
               </p>
             </div>
+
+            {/* Un botón apagado sin motivo se lee como un fallo de la app
+                (§18). Si se bloquea el paso, hay que decir con qué se
+                desbloquea. */}
+            {sinAbonos && (
+              <p className="text-menor text-ink-mute">
+                Anota al menos un abono para continuar.
+              </p>
+            )}
           </div>
         )}
       </PasoCheckin>

@@ -190,6 +190,13 @@ tercera: el dinero que entró de más fue a algún sitio.
 - El sí/no del flujo **no viene preseleccionado**: un "no" por defecto haría que
   quien no lee la pregunta reporte que no abrió deudas, y eso envenena el plan
   sin que nadie se entere.
+- **Con deudas activas y el total abonado en $0 no se pasa del paso 1.** La
+  condición lleva `deudas.length > 0` por fuerza: sin esa parte, quien ya no
+  debe nada no tendría dónde escribir una cifra y el check-in sería un callejón
+  sin salida —su próxima fecha no avanzaría y el cron le mandaría recordatorios
+  para siempre—. Queda un caso vivo por decisión del usuario: quien tuvo un mes
+  malo y no abonó nada tampoco pasa. Si algún día molesta, la salida es una
+  casilla explícita de "no pagué nada este periodo", no quitar el bloqueo.
 
 **Metas con monto.** `Objetivo.montoObjetivo` es opcional y **nunca se deduce
 del texto**: clasificar intenciones escritas a mano sería adivinar, y adivinar
