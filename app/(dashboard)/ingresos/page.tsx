@@ -1,5 +1,3 @@
-import { Plus } from "lucide-react"
-
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { EncabezadoPagina } from "@/components/layout/encabezado-pagina"
@@ -57,15 +55,7 @@ export default async function IngresosPage() {
           <h2 id="fijos-titulo" className="text-seccion font-semibold text-ink">
             Ingresos fijos
           </h2>
-          <DialogoIngreso
-            moneda={moneda}
-            trigger={
-              <Button variant="ghost" size="sm">
-                <Plus className="size-5" />
-                Agregar ingreso
-              </Button>
-            }
-          />
+          <DialogoIngreso moneda={moneda} />
         </div>
 
         {fijos.length === 0 ? (

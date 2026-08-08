@@ -52,23 +52,22 @@ export default async function ObjetivosPage(props: PageProps<"/objetivos">) {
     montoObjetivo: o.montoObjetivo === null ? null : Number(o.montoObjetivo.toString()),
   })
 
-  const botonNueva = (
-    <Button variant="secondary" disabled={!hayCupo}>
-      <Plus className="size-5" />
-      Nueva intención
-    </Button>
-  )
-
   return (
     <div className="flex flex-col gap-8">
       <EncabezadoPagina
         titulo="Tus objetivos"
         descripcion="Tus intenciones guían el plan. La más antigua es la que la IA prioriza hoy."
         accion={
+          // Sin cupo el botón se apaga, y entonces no lleva diálogo detrás.
+          // El de dentro lo pinta `DialogoObjetivo`: un icono creado aquí, en
+          // el servidor, no sobrevive al `Slot` de Radix (ver CLAUDE.md).
           hayCupo ? (
-            <DialogoObjetivo moneda={moneda} trigger={botonNueva} />
+            <DialogoObjetivo moneda={moneda} />
           ) : (
-            botonNueva
+            <Button variant="secondary" disabled>
+              <Plus className="size-5" />
+              Nueva intención
+            </Button>
           )
         }
       />

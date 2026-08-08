@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation"
 import { useId, useState } from "react"
+import { Plus } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { CampoMoneda } from "@/components/ui/campo-moneda"
@@ -37,7 +38,17 @@ export type ObjetivoEditable = {
 }
 
 type Props = {
-  trigger: React.ReactNode
+  /**
+   * Opcional: sin él se usa el botón de alta con su icono.
+   *
+   * El icono TIENE que nacer aquí dentro. Un `<Plus/>` creado en un Server
+   * Component es una referencia de cliente —lucide-react v1 lleva "use
+   * client"— y el `Slot` de Radix no la sabe clonar en el render del
+   * servidor: el botón desaparece del HTML y aparece solo al hidratar. Los
+   * triggers de solo texto sí se pueden pasar desde el servidor. Ver "El
+   * icono dentro de un DialogTrigger" en CLAUDE.md.
+   */
+  trigger?: React.ReactNode
   /** Sin objetivo es un alta. Con objetivo, la edición de ese. */
   objetivo?: ObjetivoEditable
   moneda: Moneda
@@ -90,7 +101,14 @@ export function DialogoObjetivo({ trigger, objetivo, moneda }: Props) {
         if (!v) restablecer()
       }}
     >
-      <DialogTrigger asChild>{trigger}</DialogTrigger>
+      <DialogTrigger asChild>
+        {trigger ?? (
+          <Button variant="secondary">
+            <Plus className="size-5" />
+            Nueva intención
+          </Button>
+        )}
+      </DialogTrigger>
       <DialogContent>
         <DialogHeader>
           <DialogTitle>{editando ? "Editar intención" : "Nueva intención"}</DialogTitle>

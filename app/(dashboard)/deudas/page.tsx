@@ -1,5 +1,3 @@
-import { Plus } from "lucide-react"
-
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { EncabezadoPagina } from "@/components/layout/encabezado-pagina"
@@ -55,15 +53,7 @@ export default async function DeudasPage() {
         titulo="Tus deudas"
         descripcion="El panorama completo de lo que debes hoy. La más cara es la que atacamos primero."
         accion={
-          <DialogoDeuda
-            moneda={moneda}
-            trigger={
-              <Button variant="secondary">
-                <Plus className="size-5" />
-                Agregar deuda
-              </Button>
-            }
-          />
+          <DialogoDeuda moneda={moneda} />
         }
       />
 

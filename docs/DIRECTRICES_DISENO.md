@@ -294,7 +294,11 @@ Escala de 4px: usa `1, 2, 3, 4, 6, 8, 12, 16` de Tailwind (4 a 64px). Nada inter
 - Separación entre secciones del dashboard: `space-y-8`.
 - Separación entre campos de un formulario: `space-y-5`.
 
-**Navegación:** barra superior en desktop con el nombre de la app a la izquierda y los enlaces `Inicio · Objetivos · Deudas · Ingresos · Check-in` más el menú de usuario a la derecha. En móvil, la misma barra colapsa a una fila de enlaces con scroll horizontal — **no** un menú hamburguesa, y **no** una tab bar inferior (compite con el botón fijo de "Registrar ingreso extra"). El enlace activo se marca con `text-ink` + borde inferior de 2px `border-primary`; los inactivos en `text-ink-soft`.
+**Navegación:** barra superior en desktop con el nombre de la app a la izquierda y los enlaces `Inicio · Objetivos · Deudas · Ingresos · Check-in` más el menú de usuario a la derecha. El enlace activo se marca con `text-ink` + borde inferior de 2px `border-primary`; los inactivos en `text-ink-soft`.
+
+Por debajo de `md` (768px) esos enlaces pasan a un **menú de hamburguesa**: la barra queda con el nombre de la app y el botón, y el panel se despliega debajo con los enlaces en vertical y "Salir" al final. En vertical el marcador de activo va a la **izquierda** —un borde inferior a todo el ancho se lee como separador de lista, no como "estás aquí"—.
+
+> **Corrección de la versión anterior.** Esto decía "una fila de enlaces con scroll horizontal — **no** un menú hamburguesa". Se probó en navegador y se cambió: en un teléfono no hay ninguna señal de que haya más enlaces a la derecha, así que media navegación quedaba escondida detrás de un gesto que nadie adivina. Lo que **sigue descartado** es la **tab bar inferior**: ahí abajo vive el botón fijo de "Registrar ingreso extra" (§6.7) y competirían por el mismo pulgar.
 
 `/admin` tiene su propia barra, sin los enlaces de usuario: el admin no ve datos financieros de nadie (RNF-006).
 

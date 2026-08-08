@@ -1,6 +1,7 @@
 "use client"
 
 import { useRouter } from "next/navigation"
+import { Plus } from "lucide-react"
 import { useId, useState } from "react"
 
 import { Button } from "@/components/ui/button"
@@ -43,7 +44,17 @@ export type DeudaEditable = {
 }
 
 type Props = {
-  trigger: React.ReactNode
+  /**
+   * Opcional: sin él se usa el botón de alta con su icono.
+   *
+   * El icono TIENE que nacer aquí dentro. Un `<Plus/>` creado en un Server
+   * Component es una referencia de cliente —lucide-react v1 lleva "use
+   * client"— y el `Slot` de Radix no la sabe clonar en el render del
+   * servidor: el botón desaparece del HTML y aparece solo al hidratar. Los
+   * triggers de solo texto sí se pueden pasar desde el servidor. Ver "El
+   * icono dentro de un DialogTrigger" en CLAUDE.md.
+   */
+  trigger?: React.ReactNode
   /** Sin deuda es un alta. Con deuda, la edición de esa. */
   deuda?: DeudaEditable
   moneda: Moneda
@@ -140,7 +151,14 @@ export function DialogoDeuda({ trigger, deuda, moneda }: Props) {
         if (!v) restablecer()
       }}
     >
-      <DialogTrigger asChild>{trigger}</DialogTrigger>
+      <DialogTrigger asChild>
+        {trigger ?? (
+          <Button variant="secondary">
+            <Plus className="size-5" />
+            Agregar deuda
+          </Button>
+        )}
+      </DialogTrigger>
       <DialogContent>
         <DialogHeader>
           <DialogTitle>{editando ? "Editar deuda" : "Agregar deuda"}</DialogTitle>

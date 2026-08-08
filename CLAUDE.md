@@ -242,6 +242,24 @@ dinámica y solo bajo `NEXT_RUNTIME === "nodejs"`: un import estático arrastrar
 - Para probarlo sin esperar: `RESEND_API_KEY= npm run script --
   scripts/probar-recordatorios.mts --vencer <email>`.
 
+## El icono dentro de un DialogTrigger
+
+**lucide-react v1 lleva `"use client"`.** Un `<Plus/>` creado en un Server
+Component es una *referencia de cliente*, y el `Slot` de Radix (`DialogTrigger
+asChild`) no la sabe clonar durante el render del servidor: **el botón entero
+desaparece del HTML** y solo aparece al hidratar, con el error de hidratación
+correspondiente. Reventaba en cuatro pantallas —dashboard, deudas, ingresos,
+objetivos— desde el Sprint 4; se encontró en el recorrido de QA del Sprint 8.
+
+La regla: **el icono de un trigger nace dentro del cliente.** Por eso los
+diálogos traen su propio botón de alta (`trigger` es opcional) y
+`accion-ingreso-extra.tsx` lleva `"use client"`. Un trigger de **solo texto**
+—"Editar", "Ya la logré"— sí se puede seguir pasando desde el servidor.
+
+Para comprobarlo sin adivinar: cargar la página en un contexto con JavaScript
+desactivado —eso es el HTML del servidor— y contar los botones. El que falta es
+el que rompe.
+
 ## El contenedor
 
 `Dockerfile` + `compose.yaml`, con el Nginx del host delante. La operación
@@ -313,8 +331,20 @@ tres endpoints con curl y sesión real (editar, candado de 30 días, guardar sin
 cambios, tope de 3, cerrar, cerrar dos veces, uuid ajeno → 404) y el HTML de la
 pantalla en sus tres formas —con cupo, sin cupo y con la propuesta de RF-027—.
 
-Quedan **dos cosas sin ver en navegador**: la barra fija de móvil (§6.7), a
-375px, y la pantalla de objetivos.
+**El recorrido del Sprint 8 cerró lo que faltaba en navegador**, incluida la
+barra fija de móvil (§6.7) a 375px, que era lo único del área de usuario que
+nadie había visto. Salieron dos cosas:
+
+- **El error de hidratación de los triggers con icono** (ver más arriba), que
+  llevaba ahí desde el Sprint 4 en cuatro pantallas. Arreglado y verificado: las
+  cinco pantallas cargan sin un solo error de consola.
+- **La fila de navegación con scroll horizontal se cambió por un menú de
+  hamburguesa** por debajo de 768px. Iba contra las directrices, que lo
+  prohibían explícitamente; el documento quedó corregido con el motivo.
+
+El ciclo de sesión (RNF-002) también pasó por navegador: renovación con el
+acceso vencido, rotación del refresh, expulsión del ladrón que reutiliza un
+token viejo y logout que deja el refresh inservible.
 
 Para montar el escenario, ver "Datos de prueba" en Flujo de desarrollo. Sin
 `OPENAI_API_KEY` el motor cae a `planLocal()` con las cifras reales, que
@@ -384,9 +414,10 @@ Pendientes conocidos:
   después de las 7 p.m. en Colombia guarda el día siguiente. Hoy nadie lo
   muestra —el dashboard usa `PlanIa.createdAt`— pero si se pinta, hay que
   arreglarlo antes.
-- **La barra fija de móvil (§6.7) sigue sin verse en navegador**, y la pantalla
-  de objetivos tampoco. Es lo que queda del área de usuario sin comprobar en
-  pantalla; míralas a 375px antes del QA del Sprint 7.
+- **La revocación por robo no expulsa a la víctima al instante**, y es a
+  propósito: su JWT de acceso sigue siendo válido hasta 24 h porque un JWT no se
+  puede retirar. Al ladrón sí se le corta de inmediato; la víctima cae cuando su
+  acceso vence y el refresh revocado ya no la rescata. Verificado en navegador.
 - **El aviso de plan desactualizado solo mira cifras.** `datos.ts` compara
   capacidad y deuda, así que cerrar una intención o editarla deja el plan
   aconsejando sobre una meta que ya no está, sin avisar. No es urgente —el

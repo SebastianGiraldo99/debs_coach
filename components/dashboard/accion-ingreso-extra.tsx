@@ -1,3 +1,5 @@
+"use client"
+
 import { Plus } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -13,6 +15,13 @@ import type { Moneda } from "@/lib/formato"
  * contenido. Radix admite un solo `DialogTrigger` por diálogo, así que cada
  * una monta el suyo; solo una está visible a la vez, de modo que no hay dos
  * formularios compitiendo por el mismo estado.
+ *
+ * **El `"use client"` de arriba no es decorativo.** Sin él este archivo es un
+ * Server Component, el `<Plus/>` que crea es una referencia de cliente
+ * —lucide-react v1 lleva "use client"— y el `Slot` de Radix no sabe clonarla
+ * durante el render del servidor: el botón entero desaparece del HTML y solo
+ * aparece al hidratar, con el error de hidratación correspondiente. Ver "El
+ * icono dentro de un DialogTrigger" en CLAUDE.md.
  */
 
 /** Para el slot `accion` de `EncabezadoPagina`. Se esconde en móvil. */
