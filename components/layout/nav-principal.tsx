@@ -99,6 +99,25 @@ export function NavPrincipal({ variante = "usuario" }: { variante?: "usuario" | 
   return (
     <header className="relative border-b border-line bg-paper">
       <div className="mx-auto flex h-14 max-w-3xl items-center gap-4 px-4 sm:px-8">
+        {/* Primero en el DOM, no solo a la izquierda: así el orden de
+            tabulación empieza donde empieza la vista. */}
+        {variante === "usuario" && (
+          <button
+            type="button"
+            onClick={() => setAbierto((v) => !v)}
+            aria-expanded={abierto}
+            aria-controls={idPanel}
+            aria-label={abierto ? "Cerrar menú" : "Abrir menú"}
+            // 44×44 de área táctil (§17), aunque el icono mida 24. El margen
+            // negativo alinea el ICONO con el borde del contenido; sin él, lo
+            // que queda alineado es la caja táctil y el dibujo se ve metido
+            // hacia dentro.
+            className="-ml-2 flex size-11 shrink-0 items-center justify-center text-ink-soft transition-colors hover:text-ink md:hidden"
+          >
+            {abierto ? <X className="size-6" /> : <Menu className="size-6" />}
+          </button>
+        )}
+
         <Link href={variante === "admin" ? "/admin" : "/dashboard"} className="shrink-0 font-semibold text-ink">
           Coach Financiero
         </Link>
@@ -124,24 +143,10 @@ export function NavPrincipal({ variante = "usuario" }: { variante?: "usuario" | 
         {variante === "admin" && <span className="flex-1 text-menor text-ink-mute">Administración</span>}
 
         {/* Escritorio: salir vive en la barra. En móvil se va dentro del menú,
-            para que a 375px la barra sea solo la marca y la hamburguesa. */}
+            para que a 375px la barra sea solo la hamburguesa y la marca. */}
         <div className={cn("ml-auto", variante === "usuario" && "hidden md:block")}>
           <BotonSalir />
         </div>
-
-        {variante === "usuario" && (
-          <button
-            type="button"
-            onClick={() => setAbierto((v) => !v)}
-            aria-expanded={abierto}
-            aria-controls={idPanel}
-            aria-label={abierto ? "Cerrar menú" : "Abrir menú"}
-            // 44×44 de área táctil (§17), aunque el icono mida 24.
-            className="-mr-2 flex size-11 shrink-0 items-center justify-center text-ink-soft transition-colors hover:text-ink md:hidden"
-          >
-            {abierto ? <X className="size-6" /> : <Menu className="size-6" />}
-          </button>
-        )}
       </div>
 
       {variante === "usuario" && abierto && (
