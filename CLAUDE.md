@@ -308,8 +308,26 @@ el hook de resolución que lo arregla.
 | 4 — Dashboard e ingreso extra | ✅ dashboard, deudas e ingresos sobre datos reales; probado end-to-end |
 | 5 — Check-in y cron | ✅ flujo, API, progreso por objetivo y recordatorio; probado contra la base |
 | 6 — Objetivos | ✅ CRUD de intenciones, candado de 30 días y cierre; probado contra la base |
-| 7 — Sesión y contenedor | 🟨 refresh token probado contra la base; el Docker está escrito pero **sin construir** |
-| 8 — QA y puesta en producción | ⬜ **siguiente** |
+| 7 — Sesión y contenedor | 🟨 refresh token probado en base y en navegador; el Docker está escrito pero **sin construir** |
+| 8 — QA y puesta en producción | 🟨 **en curso** — el recorrido visual está hecho y aprobado; faltan las pruebas de seguridad y el despliegue |
+
+### Lo que queda, en orden
+
+1. **IDOR con dos cuentas reales** (RNF-005). Los endpoints con `[id]`
+   —deudas, ingresos, objetivos— se probaron con un uuid inexistente (404),
+   **no** con el id real de otro usuario. Es la única prueba del checklist que
+   no se ha hecho de verdad.
+2. **Que el admin no vea cifras de nadie** (RNF-006): recorrer `/admin` con la
+   sesión del admin y confirmar que ninguna respuesta trae montos.
+3. **Borrar `app/(dashboard)/estilo/`**, que es una página de desarrollo.
+4. **Construir la imagen por primera vez** — hazlo en el VPS, no en el Mac: así
+   el primer build ocurre en linux/amd64, que es la arquitectura que importa.
+5. **Desplegar** siguiendo `docs/OPERACIONES.md` §1.
+
+Antes del paso 5 hacen falta cosas que solo puede preparar el usuario:
+subdominio y DNS, el dominio verificado en Resend (DKIM + SPF) o no sale ni un
+correo, `OPENAI_API_KEY` de producción, un `JWT_SECRET` nuevo, y el usuario
+`coach_app` con su base dentro de `shared_postgres`.
 
 ### Las pruebas manuales: hechas, y lo que salieron de ellas
 
@@ -338,20 +356,38 @@ tres endpoints con curl y sesión real (editar, candado de 30 días, guardar sin
 cambios, tope de 3, cerrar, cerrar dos veces, uuid ajeno → 404) y el HTML de la
 pantalla en sus tres formas —con cupo, sin cupo y con la propuesta de RF-027—.
 
-**El recorrido del Sprint 8 cerró lo que faltaba en navegador**, incluida la
-barra fija de móvil (§6.7) a 375px, que era lo único del área de usuario que
-nadie había visto. Salieron dos cosas:
+**El recorrido del Sprint 8 cerró todo lo visual en navegador y el usuario lo
+aprobó**, incluida la barra fija de móvil (§6.7) a 375px, que era lo único del
+área de usuario que nadie había visto. Salieron cuatro cosas, las cuatro ya
+resueltas:
 
 - **El error de hidratación de los triggers con icono** (ver más arriba), que
   llevaba ahí desde el Sprint 4 en cuatro pantallas. Arreglado y verificado: las
   cinco pantallas cargan sin un solo error de consola.
 - **La fila de navegación con scroll horizontal se cambió por un menú de
-  hamburguesa** por debajo de 768px. Iba contra las directrices, que lo
-  prohibían explícitamente; el documento quedó corregido con el motivo.
+  hamburguesa** por debajo de 768px, con el botón en la esquina **izquierda** y
+  primero en el DOM. Iba contra las directrices, que lo prohibían
+  explícitamente; el documento quedó corregido con el motivo.
+- **En el check-in no se pasa del paso 1 sin abonos** (ver "El Check-in").
+- El botón de acción del encabezado **cae debajo del título** en pantallas
+  intermedias, porque `EncabezadoPagina` envuelve y el bloque de texto ocupa
+  `max-w-[65ch]`. Se le enseñó al usuario y lo dejó como está; si algún día
+  molesta, es una línea en ese componente.
 
 El ciclo de sesión (RNF-002) también pasó por navegador: renovación con el
 acceso vencido, rotación del refresh, expulsión del ladrón que reutiliza un
 token viejo y logout que deja el refresh inservible.
+
+**Cómo se condujo ese recorrido, por si hay que repetirlo.** No hay
+`chromium-cli` en esta máquina, pero sí Chrome: se instaló `playwright` en el
+scratchpad y se lanzó con `chromium.launch({ channel: "chrome" })`, sin
+descargar navegador. Dos trucos que valieron la pena:
+
+- Un contexto con `javaScriptEnabled: false` da **el HTML del servidor sin
+  hidratar**. Comparar sus botones con los del contexto normal es lo que
+  destapó el fallo de los iconos.
+- Escuchar `pageerror` y `console` con tipo `error` en cada navegación
+  convierte "parece que va bien" en una lista de fallos.
 
 Para montar el escenario, ver "Datos de prueba" en Flujo de desarrollo. Sin
 `OPENAI_API_KEY` el motor cae a `planLocal()` con las cifras reales, que
@@ -413,6 +449,10 @@ Pendientes conocidos:
   los estáticos —tras copiar `public/` y `.next/static/` a mano, como hace el
   Dockerfile— y el planificador del cron se programa dentro de ella. El primer
   `docker compose up --build` es del Sprint 8.
+- **El túnel SSH se cae solo y hay que reabrirlo a mano.** Un agente no puede:
+  la llave pide autenticación interactiva y responde `Permission denied
+  (publickey)`. Si aparece `P1001` a mitad de una sesión, es esto — pídeselo al
+  usuario en vez de dar vueltas.
 - Cerrar el onboarding deja **dos eventos `plan_generado`** seguidos: la foto
   inicial que escribe `/api/onboarding/completar` (sin `planIaId`, con las
   cifras de partida) y el plan de verdad. Al pintar el historial hay que
@@ -438,6 +478,11 @@ Pendientes conocidos:
   superficie de ataque sin función.
 
 ## Flujo de desarrollo
+
+**El repo ya está en GitHub**: `origin` apunta a
+`https://github.com/SebastianGiraldo99/debs_coach.git` y `main` está subido. El
+despliegue del VPS clona de ahí (`docs/OPERACIONES.md` §1.2). **El push lo hace
+el usuario**, no se hace solo.
 
 **PostgreSQL vive en Docker en el VPS, sin exponer.** Hace falta un túnel SSH,
 y se cae con frecuencia — si ves `DatabaseNotReachable` o `P1001`, es esto:
