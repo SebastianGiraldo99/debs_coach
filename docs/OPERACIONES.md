@@ -45,7 +45,7 @@ Rellenar `.env`. Lo que cambia respecto a desarrollo:
 |---|---|
 | `DATABASE_URL` | `postgresql://coach_app:PASSWORD@shared_postgres:5432/coach_financiero?schema=public` — el host es el **nombre del contenedor**, no `127.0.0.1` |
 | `APP_URL` | `https://tu-dominio` — de aquí salen los links de todos los correos |
-| `JWT_SECRET` | Uno nuevo: `openssl rand -base64 32`. **No** el de desarrollo |
+| `JWT_SECRET` | Uno nuevo: `openssl rand -base64 32`, o `npm run script -- scripts/generar-secreto-jwt.mts`. **No** el de desarrollo |
 | `ADMIN_EMAIL` / `ADMIN_PASSWORD` | Las credenciales reales del administrador |
 
 Si la contraseña lleva caracteres especiales hay que URL-encodearlos en
