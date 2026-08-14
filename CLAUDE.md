@@ -322,10 +322,30 @@ el hook de resolución que lo arregla.
    el primer build ocurre en linux/amd64, que es la arquitectura que importa.
 5. **Desplegar** siguiendo `docs/OPERACIONES.md` §1.
 
-Antes del paso 5 hacen falta cosas que solo puede preparar el usuario:
-subdominio y DNS, el dominio verificado en Resend (DKIM + SPF) o no sale ni un
-correo, `OPENAI_API_KEY` de producción, un `JWT_SECRET` nuevo, y el usuario
-`coach_app` con su base dentro de `shared_postgres`.
+Antes del paso 5 hacen falta cosas que solo puede preparar el usuario.
+Comprobadas por DNS el 2026-08-13:
+
+- ✅ **Subdominio**: `coach.agotech.cloud` resuelve a la misma IP que
+  `agotech.cloud`. Es el `APP_URL` de producción; tiene que coincidir con el
+  `server_name` de Nginx y con el dominio del certificado.
+- ✅ **Resend**: DKIM (`resend._domainkey.mail.agotech.cloud`), SPF y MX
+  (`send.mail.agotech.cloud` → `feedback-smtp.sa-east-1.amazonses.com`) y un
+  DMARC `p=none` en la raíz. Falta solo confirmar en el panel de Resend que el
+  dominio figure verificado; el DNS ya está.
+- ⬜ `OPENAI_API_KEY` de producción.
+- ⬜ Un `JWT_SECRET` nuevo — `scripts/generar-secreto-jwt.mts`.
+- ⬜ El usuario `coach_app` con su base dentro de `shared_postgres`.
+
+**El archivo de entorno del VPS lo escribe el usuario a mano**, copiándolo al
+servidor. Hubo un script que lo generaba preguntando los valores; se descartó
+por decisión suya. Si alguien lo rehace, lo que había que cuidar era:
+URL-encodear la contraseña dentro de `DATABASE_URL` —una `@` sin escapar da un
+`P1001` que parece un problema de red—, permisos 600 y que el archivo quede en
+`/opt/debs_coach/.env`, que es donde lo busca el `env_file` del compose.
+
+**Un agente no puede entrar al VPS.** Verificado de nuevo el 2026-08-13:
+`ssh -o BatchMode=yes root@agotech.cloud` responde `Permission denied
+(publickey…)`. Los pasos 4 y 5 los ejecuta el usuario.
 
 ### La prueba de IDOR (RNF-005)
 
