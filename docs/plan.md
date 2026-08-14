@@ -23,7 +23,7 @@ Cómo usarlo en los sprints siguientes:
 
 - **`lib/mock/` es el contrato.** Sus objetos replican los campos y enums de `schema.prisma`, así que conectar cada pantalla es sustituir el import por la consulta real, no reescribir la vista.
 - **Los formularios ya están maquetados** con estado local de React; falta añadirles Zod, server actions y manejo de errores. Cada handler tiene un `// TODO: conectar API`.
-- **`app/(dashboard)/estilo/`** es una página de desarrollo con la paleta y todos los componentes. Se elimina antes de producción.
+- **`app/(dashboard)/estilo/`** era una página de desarrollo con la paleta y todos los componentes. **Eliminada en el Sprint 8**, antes del despliegue.
 - **Los tokens de `app/globals.css` son la única fuente de color y tipografía.** Ningún componente lleva hexadecimales; mantener esa regla.
 - **`/dashboard?estado=vacio|cargando|error`** renderiza los estados de sistema para revisarlos sin provocarlos.
 

@@ -92,12 +92,14 @@ Que los datos sean **creíbles y en pesos colombianos**: una persona con ~$4.800
 
 `app/estilo/page.tsx` — una página de desarrollo que muestra la paleta, la escala tipográfica, todos los componentes en todos sus estados, y los tres estados de sistema. Sirve para revisar el sistema completo de un vistazo. Se elimina antes de producción.
 
+**Ya se eliminó** (Sprint 8, antes del despliegue). Esta sección queda como registro de para qué existió: si hiciera falta revisar el sistema completo de un vistazo otra vez, se recrea desde el historial de git y se vuelve a borrar. No debe existir en producción.
+
 ## 5. Cómo llenar cada pantalla con contenido falso
 
 - **Onboarding:** cada paso arranca con 1 fila vacía; el botón "Agregar otra" añade filas al estado local.
 - **Dashboard, objetivos, deudas, ingresos, admin:** renderizan directamente desde `lib/mock/`.
 - **Check-in:** flujo de 3 pasos que termina en una pantalla de resultado con el mensaje motivacional falso ya escrito en `lib/mock/plan.ts`.
-- **Estados vacío/cargando/error:** además de la página `/estilo`, deja cada uno alcanzable con un query param (`/dashboard?estado=vacio`, `?estado=cargando`, `?estado=error`) para poder revisarlos.
+- **Estados vacío/cargando/error:** además de la página `/estilo` (ya eliminada, §4.6), deja cada uno alcanzable con un query param (`/dashboard?estado=vacio`, `?estado=cargando`, `?estado=error`) para poder revisarlos.
 
 ## 6. La pantalla que define el proyecto — el dashboard
 
@@ -149,7 +151,7 @@ Antes de reportar el encargo como terminado, verifica cada punto:
 - [ ] Ningún color hexadecimal aparece dentro de un componente — todo sale de los tokens de Tailwind.
 - [ ] Cero emojis en la interfaz.
 - [ ] Cero gradientes, cero `backdrop-blur`, cero sombras mayores a `shadow-card`.
-- [ ] La página `/estilo` muestra la paleta, la tipografía y todos los componentes.
+- [x] La página `/estilo` muestra la paleta, la tipografía y todos los componentes. *(Cumplido en la maqueta; la página se eliminó antes de producción — §4.6.)*
 - [ ] Navegación completa con teclado: foco visible en todo elemento interactivo, orden de tabulación lógico.
 
 ## 8. Qué reportar al terminar
