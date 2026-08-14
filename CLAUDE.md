@@ -313,13 +313,11 @@ el hook de resolución que lo arregla.
 
 ### Lo que queda, en orden
 
-1. **IDOR con dos cuentas reales** (RNF-005). Los endpoints con `[id]`
-   —deudas, ingresos, objetivos— se probaron con un uuid inexistente (404),
-   **no** con el id real de otro usuario. Es la única prueba del checklist que
-   no se ha hecho de verdad.
-2. **Que el admin no vea cifras de nadie** (RNF-006): recorrer `/admin` con la
-   sesión del admin y confirmar que ninguna respuesta trae montos.
-3. **Borrar `app/(dashboard)/estilo/`**, que es una página de desarrollo.
+1. ~~IDOR con dos cuentas reales (RNF-005)~~ — **hecho de verdad**, 15/15 sin
+   hallazgos. Ver "La prueba de IDOR" más abajo.
+2. ~~Que el admin no vea cifras de nadie (RNF-006)~~ — probado por el usuario.
+3. ~~Borrar `app/(dashboard)/estilo/`~~ — eliminada. Vive en el historial de git
+   por si hace falta volver a mirar el sistema completo de un vistazo.
 4. **Construir la imagen por primera vez** — hazlo en el VPS, no en el Mac: así
    el primer build ocurre en linux/amd64, que es la arquitectura que importa.
 5. **Desplegar** siguiendo `docs/OPERACIONES.md` §1.
@@ -328,6 +326,40 @@ Antes del paso 5 hacen falta cosas que solo puede preparar el usuario:
 subdominio y DNS, el dominio verificado en Resend (DKIM + SPF) o no sale ni un
 correo, `OPENAI_API_KEY` de producción, un `JWT_SECRET` nuevo, y el usuario
 `coach_app` con su base dentro de `shared_postgres`.
+
+### La prueba de IDOR (RNF-005)
+
+`scripts/idor-sembrar.mts` monta dos cuentas completas y `scripts/idor-probar.mts`
+ataca con la sesión de una los recursos de la otra. **15/15 sin hallazgos.**
+
+```bash
+RESEND_API_KEY= OPENAI_API_KEY= npm run dev     # deja libre el 3000, o usa BASE_URL
+npm run script -- scripts/idor-sembrar.mts      # imprime los ids en JSON
+BASE_URL=http://localhost:3000 npm run script -- scripts/idor-probar.mts '<ese JSON>'
+npm run script -- scripts/limpiar-datos-prueba.mts
+```
+
+Tres cosas que hacen que la prueba signifique algo, y que se pierden si alguien
+la "simplifica":
+
+- **Los uuid son reales y ajenos.** La versión anterior usaba uuid
+  inexistentes, que devuelven 404 *aunque la consulta no filtre por dueño*: no
+  probaba nada. Es la razón de ser de los dos usuarios.
+- **Cada ataque lleva su control positivo**: la misma petición contra el
+  recurso propio de A, que debe dar 200. Sin eso, un cuerpo que zod rechaza
+  daría 404 en todo y el script se leería como una app segura. El cuerpo tiene
+  que ser **válido** para llegar hasta la capa de autorización.
+- **En el check-in un id ajeno no da 404**, se ignora en silencio a propósito
+  (ver "El Check-in"). Ahí la comprobación no es el status —responde 200— sino
+  que el saldo y el `montoAcumulado` de B no se movieron, releídos de la base.
+
+Cubre los `[id]` de la URL —deudas, ingresos, objetivos, `logrado`— y los ids
+que viajan en el **cuerpo**, que son los que se olvidan: `pagos[].deudaId` y
+`aportes[].objetivoId` del check-in, y el `ingresoExtraId` de generar-plan. Este
+último se comprueba sobre `construirContexto`, no sobre la prosa del plan: el
+contexto es exactamente lo que el modelo llegaría a leer y no depende del
+proveedor ni gasta tokens. También verifica que `/api/admin/usuarios/[id]`
+responda **404 y no 403** a quien no es admin, y 401 sin cookie.
 
 ### Las pruebas manuales: hechas, y lo que salieron de ellas
 
@@ -471,8 +503,6 @@ Pendientes conocidos:
   siguiente check-in lo recalibra— pero si alguien quiere cerrarlo, la señal
   barata es comparar `PlanIa.createdAt` con el evento `objetivo_logrado` más
   reciente.
-- `app/(dashboard)/estilo/` es una página de desarrollo; se elimina antes de
-  producción.
 - `GET /api/admin/usuarios` no existe a propósito: la página consulta la base
   directamente y `router.refresh()` la repinta. Un endpoint sin consumidor sería
   superficie de ataque sin función.

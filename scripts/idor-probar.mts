@@ -1,0 +1,218 @@
+import "dotenv/config"
+
+import { prisma } from "@/lib/db/prisma"
+import { construirContexto } from "@/lib/ia/contexto"
+
+/**
+ * Prueba de IDOR (RNF-005): con la sesión de A, pedir los recursos de B por su
+ * id REAL.
+ *
+ * Lo que distingue esta prueba de la que ya estaba hecha: aquí los uuid
+ * existen y pertenecen a otra persona. Un uuid inventado devuelve 404 incluso
+ * sin filtro de dueño, así que no probaba nada.
+ *
+ * Cada ataque lleva su control positivo —la misma petición contra el recurso
+ * PROPIO de A—, porque un 404 también sale de un cuerpo inválido o de una ruta
+ * mal escrita. Sin el control, un script roto se leería como una app segura.
+ *
+ * Requiere el servidor en localhost:3000 y las cuentas de `idor-sembrar.mts`.
+ */
+
+const BASE = process.env.BASE_URL ?? "http://localhost:3000"
+
+type Cuenta = {
+  password: string
+  usuarioId: string
+  objetivoId: string
+  ingresoId: string
+  deudaId: string
+  ingresoExtraId: string
+}
+
+const datos = JSON.parse(process.argv[2]) as Record<string, Cuenta>
+const A = datos["atacante@local.test"]
+const B = datos["victima@local.test"]
+
+async function login(email: string, password: string): Promise<string> {
+  const res = await fetch(`${BASE}/api/auth/login`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ email, password }),
+  })
+  if (!res.ok) throw new Error(`login de ${email} falló: ${res.status} ${await res.text()}`)
+  const cookies = res.headers
+    .getSetCookie()
+    .map((c) => c.split(";")[0])
+    .join("; ")
+  if (!cookies.includes("coach_session")) throw new Error(`sin cookie de sesión para ${email}`)
+  return cookies
+}
+
+async function pedir(metodo: string, ruta: string, cookie: string, cuerpo?: unknown) {
+  const res = await fetch(`${BASE}${ruta}`, {
+    method: metodo,
+    headers: { "content-type": "application/json", cookie },
+    ...(cuerpo !== undefined && { body: JSON.stringify(cuerpo) }),
+  })
+  let json: unknown = null
+  try {
+    json = await res.json()
+  } catch {
+    /* respuestas sin cuerpo */
+  }
+  return { status: res.status, json }
+}
+
+const resultados: { nombre: string; ok: boolean; detalle: string }[] = []
+
+function comprobar(nombre: string, ok: boolean, detalle: string) {
+  resultados.push({ nombre, ok, detalle })
+  console.log(`${ok ? "  PASA" : "  FALLA"}  ${nombre} — ${detalle}`)
+}
+
+const cookieA = await login("atacante@local.test", "idor-atacante-2026")
+console.log("Sesión de la atacante abierta.\n")
+
+// Estado de B antes de cualquier ataque, para comparar al final.
+const antes = {
+  deuda: await prisma.deuda.findUnique({ where: { id: B.deudaId } }),
+  ingreso: await prisma.ingreso.findUnique({ where: { id: B.ingresoId } }),
+  objetivo: await prisma.objetivo.findUnique({ where: { id: B.objetivoId } }),
+}
+
+console.log("── Ataques con la sesión de A contra los recursos de B ──")
+
+// ─── Deudas ────────────────────────────────────────────────────────────────
+let r = await pedir("PATCH", `/api/deudas/${B.deudaId}`, cookieA, {
+  nombre: "SECUESTRADA POR ANA",
+  saldo: 1,
+})
+comprobar("PATCH /api/deudas/[id] ajeno", r.status === 404, `status ${r.status}`)
+
+r = await pedir("DELETE", `/api/deudas/${B.deudaId}`, cookieA)
+comprobar("DELETE /api/deudas/[id] ajeno", r.status === 404, `status ${r.status}`)
+
+// ─── Ingresos ──────────────────────────────────────────────────────────────
+r = await pedir("PATCH", `/api/ingresos/${B.ingresoId}`, cookieA, {
+  categoria: "salario",
+  monto: 1,
+})
+comprobar("PATCH /api/ingresos/[id] ajeno", r.status === 404, `status ${r.status}`)
+
+r = await pedir("DELETE", `/api/ingresos/${B.ingresoId}`, cookieA)
+comprobar("DELETE /api/ingresos/[id] ajeno", r.status === 404, `status ${r.status}`)
+
+// ─── Objetivos ─────────────────────────────────────────────────────────────
+r = await pedir("PATCH", `/api/objetivos/${B.objetivoId}`, cookieA, {
+  intencion: "Intencion secuestrada por Ana Atacante",
+})
+comprobar("PATCH /api/objetivos/[id] ajeno", r.status === 404, `status ${r.status}`)
+
+r = await pedir("POST", `/api/objetivos/${B.objetivoId}/logrado`, cookieA)
+comprobar("POST /api/objetivos/[id]/logrado ajeno", r.status === 404, `status ${r.status}`)
+
+// ─── Admin, con sesión de usuaria normal ───────────────────────────────────
+r = await pedir("PATCH", `/api/admin/usuarios/${B.usuarioId}`, cookieA, { estado: "bloqueado" })
+comprobar(
+  "PATCH /api/admin/usuarios/[id] sin ser admin → 404, no 403",
+  r.status === 404,
+  `status ${r.status}`,
+)
+
+// ─── Check-in: ids ajenos en el CUERPO ─────────────────────────────────────
+// Aquí un id ajeno NO da 404: se ignora a propósito para no tumbar el
+// check-in entero. La comprobación es que los datos de B no se movieron.
+r = await pedir("POST", "/api/checkin", cookieA, {
+  pagos: [{ deudaId: B.deudaId, monto: 1_000_000 }],
+  nuevasDeudas: [],
+  ingresosExtra: [],
+  aportes: [{ objetivoId: B.objetivoId, monto: 500_000 }],
+})
+console.log(`  (check-in con ids de B respondió ${r.status})`)
+
+// ─── Motor IA: ingresoExtraId ajeno en el cuerpo ───────────────────────────
+// Se comprueba sobre el contexto, no sobre la prosa del plan: el contexto es
+// exactamente lo que el modelo llegaría a leer, y no depende del proveedor.
+const contextoA = await construirContexto(A.usuarioId, "ingreso_extra", B.ingresoExtraId)
+const serializado = JSON.stringify(contextoA)
+comprobar(
+  "construirContexto con ingresoExtraId ajeno no filtra el ingreso de B",
+  !serializado.includes("Beto Victima"),
+  serializado.includes("Beto Victima") ? "¡el contexto trae datos de B!" : "el contexto no lo incluye",
+)
+
+r = await pedir("POST", "/api/ia/generar-plan", cookieA, {
+  trigger: "ingreso_extra",
+  ingresoExtraId: B.ingresoExtraId,
+})
+console.log(`  (generar-plan con ingresoExtraId de B respondió ${r.status})`)
+
+// ─── Sin sesión ────────────────────────────────────────────────────────────
+r = await pedir("PATCH", `/api/deudas/${B.deudaId}`, "", { nombre: "Sin sesion", saldo: 1 })
+comprobar("PATCH /api/deudas/[id] sin cookie", r.status === 401, `status ${r.status}`)
+
+// ─── Los datos de B, releídos de la base ───────────────────────────────────
+console.log("\n── Los datos de B después de todos los ataques ──")
+
+const despues = {
+  deuda: await prisma.deuda.findUnique({ where: { id: B.deudaId } }),
+  ingreso: await prisma.ingreso.findUnique({ where: { id: B.ingresoId } }),
+  objetivo: await prisma.objetivo.findUnique({ where: { id: B.objetivoId } }),
+}
+
+comprobar(
+  "La deuda de B sigue existiendo, con su nombre y su saldo",
+  despues.deuda !== null &&
+    despues.deuda.nombre === antes.deuda!.nombre &&
+    String(despues.deuda.montoActual) === String(antes.deuda!.montoActual) &&
+    despues.deuda.estado === antes.deuda!.estado,
+  `nombre="${despues.deuda?.nombre}" saldo=${despues.deuda?.montoActual} estado=${despues.deuda?.estado}`,
+)
+
+comprobar(
+  "El ingreso de B sigue existiendo, con su monto",
+  despues.ingreso !== null &&
+    String(despues.ingreso.montoMensual) === String(antes.ingreso!.montoMensual),
+  `monto=${despues.ingreso?.montoMensual}`,
+)
+
+comprobar(
+  "El objetivo de B conserva intención, estado y acumulado",
+  despues.objetivo !== null &&
+    despues.objetivo.intencion === antes.objetivo!.intencion &&
+    despues.objetivo.estado === antes.objetivo!.estado &&
+    String(despues.objetivo.montoAcumulado) === String(antes.objetivo!.montoAcumulado),
+  `intencion="${despues.objetivo?.intencion}" estado=${despues.objetivo?.estado} acumulado=${despues.objetivo?.montoAcumulado}`,
+)
+
+// ─── Controles positivos ───────────────────────────────────────────────────
+// Sin esto, un script roto (cuerpo inválido, ruta mal escrita) daría 404 en
+// todo y se leería como una app segura.
+console.log("\n── Controles positivos: A contra SUS PROPIOS recursos ──")
+
+r = await pedir("PATCH", `/api/deudas/${A.deudaId}`, cookieA, {
+  nombre: "Tarjeta renombrada por su dueña",
+  saldo: 7_000_000,
+})
+comprobar("PATCH de A sobre su propia deuda funciona", r.status === 200, `status ${r.status}`)
+
+r = await pedir("PATCH", `/api/objetivos/${A.objetivoId}`, cookieA, {
+  intencion: "Intencion editada por su propia dueña",
+})
+comprobar("PATCH de A sobre su propio objetivo funciona", r.status === 200, `status ${r.status}`)
+
+r = await pedir("DELETE", `/api/ingresos/${A.ingresoId}`, cookieA)
+comprobar("DELETE de A sobre su propio ingreso funciona", r.status === 200, `status ${r.status}`)
+
+// ─── Veredicto ─────────────────────────────────────────────────────────────
+const fallidas = resultados.filter((x) => !x.ok)
+console.log(`\n${"═".repeat(60)}`)
+console.log(`${resultados.length - fallidas.length}/${resultados.length} comprobaciones pasan.`)
+if (fallidas.length > 0) {
+  console.log("\nFALLAN:")
+  for (const f of fallidas) console.log(`  - ${f.nombre}: ${f.detalle}`)
+}
+console.log(fallidas.length === 0 ? "IDOR: sin hallazgos." : "IDOR: HAY HALLAZGOS.")
+
+await prisma.$disconnect()
+process.exit(fallidas.length === 0 ? 0 : 1)
