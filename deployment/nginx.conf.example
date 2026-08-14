@@ -1,17 +1,22 @@
 # Coach Financiero — reverse proxy del host (RNF-003).
 #
-# Plantilla. En el VPS va en /etc/nginx/sites-available/coach-financiero.conf
-# con un enlace en sites-enabled/, y NO se versiona con el dominio real
-# rellenado: este archivo es lo que se copia, no lo que corre.
+# Plantilla. NO se versiona con el dominio real rellenado: este archivo es lo
+# que se copia, no lo que corre.
 #
-#   sudo cp deployment/nginx.conf.example /etc/nginx/sites-available/coach-financiero.conf
-#   sudo sed -i 's/TU_DOMINIO/coach.tudominio.com/g' /etc/nginx/sites-available/coach-financiero.conf
-#   sudo ln -s /etc/nginx/sites-available/coach-financiero.conf /etc/nginx/sites-enabled/
+# EL CERTIFICADO VA PRIMERO. El bloque 443 de abajo ya apunta a
+# /etc/letsencrypt/live/…, así que si el certificado no existe todavía
+# `nginx -t` falla, Nginx no recarga y certbot tampoco puede trabajar.
+# `certonly` lo emite sin tocar ninguna configuración:
+#
+#   sudo certbot certonly --nginx -d coach.tudominio.com
+#
+# Dónde va el archivo depende del Nginx: el de Debian/Ubuntu usa
+# sites-available + enlace en sites-enabled; el del repo de nginx.org carga de
+# conf.d/ y no necesita enlace. `grep -n include /etc/nginx/nginx.conf` lo dice.
+#
+#   sudo cp deployment/nginx.conf.example /etc/nginx/conf.d/coach-financiero.conf
+#   sudo sed -i 's/TU_DOMINIO/coach.tudominio.com/g' /etc/nginx/conf.d/coach-financiero.conf
 #   sudo nginx -t && sudo systemctl reload nginx
-#   sudo certbot --nginx -d coach.tudominio.com
-#
-# Certbot reescribe este archivo al emitir el certificado: añade el bloque 443
-# con sus rutas y deja el 80 redirigiendo. Lo de abajo es el punto de partida.
 
 server {
     listen 80;

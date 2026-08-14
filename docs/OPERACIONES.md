@@ -33,9 +33,9 @@ CREATE DATABASE coach_financiero OWNER coach_app;
 ### 1.2 Clonar y configurar
 
 ```bash
-sudo mkdir -p /opt/coach && sudo chown "$USER" /opt/coach
-git clone <URL_DEL_REPO> /opt/coach
-cd /opt/coach
+sudo mkdir -p /opt/debs_coach && sudo chown "$USER" /opt/debs_coach
+git clone <URL_DEL_REPO> /opt/debs_coach
+cd /opt/debs_coach
 cp .env.example .env
 ```
 
@@ -51,6 +51,23 @@ Rellenar `.env`. Lo que cambia respecto a desarrollo:
 Si la contraseña lleva caracteres especiales hay que URL-encodearlos en
 `DATABASE_URL` (`@` → `%40`, `#` → `%23`, …). Una contraseña con un `@` sin
 escapar produce un `P1001` que parece un problema de red y no lo es.
+
+**No copies el `.env` de desarrollo tal cual.** Pasó en el primer despliegue:
+`DATABASE_URL` quedó apuntando a `127.0.0.1:5433` —el extremo local del túnel
+SSH— y las migraciones murieron con `P1001`. Dentro de un contenedor
+`127.0.0.1` es **ese contenedor**, así que cambiar solo el puerto no arregla
+nada; el host tiene que ser `shared_postgres`.
+
+Ese falla ruidosamente. Los demás valores de desarrollo fallan **en silencio**,
+que es peor — repásalos uno a uno:
+
+| Variable | Si queda la de desarrollo |
+|---|---|
+| `APP_URL` | Los links de invitación apuntan a `localhost`: nadie puede aceptarlas |
+| `JWT_SECRET` | El secreto de producción es uno que ya existe fuera del servidor |
+| `RESEND_API_KEY` | Vacía: no sale ni un correo, se imprimen en el log |
+| `OPENAI_API_KEY` | Vacía: los planes se calculan en local, sin IA |
+| `ADMIN_EMAIL` / `ADMIN_PASSWORD` | El seed crea tu admin con credenciales de prueba |
 
 ### 1.3 Levantar
 
@@ -76,18 +93,43 @@ Idempotente: si el admin ya existe no le pisa la contraseña.
 
 ### 1.5 Nginx y certificado
 
+**El certificado va PRIMERO.** La plantilla trae el bloque 443 apuntando a
+`/etc/letsencrypt/live/…/fullchain.pem`: si ese archivo no existe todavía,
+`nginx -t` falla, Nginx no recarga y certbot tampoco puede trabajar. `certonly`
+emite sin tocar ninguna configuración, así que los otros sitios del VPS ni se
+enteran:
+
 ```bash
-sudo cp deployment/nginx.conf.example /etc/nginx/sites-available/coach-financiero.conf
-sudo sed -i 's/TU_DOMINIO/coach.tudominio.com/g' /etc/nginx/sites-available/coach-financiero.conf
-sudo ln -s /etc/nginx/sites-available/coach-financiero.conf /etc/nginx/sites-enabled/
+sudo certbot certonly --nginx -d coach.agotech.cloud
+sudo ls /etc/letsencrypt/live/coach.agotech.cloud/   # fullchain.pem, privkey.pem…
+```
+
+**Dónde va el archivo depende de qué Nginx haya.** El de Debian/Ubuntu usa
+`sites-available` + enlace en `sites-enabled`; el del repo de nginx.org —el de
+este VPS— carga de `conf.d/` y no necesita enlace. Míralo antes:
+
+```bash
+grep -n include /etc/nginx/nginx.conf
+```
+
+```bash
+cd /opt/debs_coach
+sudo cp deployment/nginx.conf.example /etc/nginx/conf.d/coach-financiero.conf
+sudo sed -i 's/TU_DOMINIO/coach.agotech.cloud/g' /etc/nginx/conf.d/coach-financiero.conf
 sudo nginx -t && sudo systemctl reload nginx
-sudo certbot --nginx -d coach.tudominio.com
+```
+
+Si `nginx -t` se queja de `options-ssl-nginx.conf` o `ssl-dhparams.pem`, es que
+certbot nunca los generó en esta máquina:
+
+```bash
+sudo openssl dhparam -out /etc/letsencrypt/ssl-dhparams.pem 2048
 ```
 
 ### 1.6 Comprobar
 
 ```bash
-curl -s -o /dev/null -w '%{http_code}\n' https://coach.tudominio.com/login   # 200
+curl -s -o /dev/null -w '%{http_code}\n' https://coach.agotech.cloud/login   # 200
 docker compose ps                                                            # app: healthy
 ```
 
@@ -98,7 +140,7 @@ Y entrar por navegador con el usuario admin.
 ## 2. Actualizar a una versión nueva
 
 ```bash
-cd /opt/coach
+cd /opt/debs_coach
 git pull
 docker compose up -d --build
 ```
@@ -154,13 +196,13 @@ sudo crontab -e
 ```
 
 ```
-0 3 * * * /opt/coach/scripts/backup-db.sh >> /var/log/coach-backup.log 2>&1
+0 3 * * * /opt/debs_coach/scripts/backup-db.sh >> /var/log/coach-backup.log 2>&1
 ```
 
 Comprobar que funciona antes de confiar en él:
 
 ```bash
-/opt/coach/scripts/backup-db.sh
+/opt/debs_coach/scripts/backup-db.sh
 ls -lh /var/backups/coach/
 ```
 
@@ -171,7 +213,7 @@ verdad.
 ### Restaurar
 
 ```bash
-/opt/coach/scripts/restore-db.sh /var/backups/coach/coach-2026-08-06.sql.gz
+/opt/debs_coach/scripts/restore-db.sh /var/backups/coach/coach-2026-08-06.sql.gz
 ```
 
 Pide escribir `RESTAURAR`, guarda una copia del estado actual en `/tmp` por si

@@ -10,7 +10,7 @@
 #   scripts/backup-db.sh
 #
 # En el cron del VPS (3 de la mañana, todos los días):
-#   0 3 * * * /opt/coach/scripts/backup-db.sh >> /var/log/coach-backup.log 2>&1
+#   0 3 * * * /opt/debs_coach/scripts/backup-db.sh >> /var/log/coach-backup.log 2>&1
 set -euo pipefail
 
 CONTENEDOR="${CONTENEDOR_POSTGRES:-shared_postgres}"

@@ -308,44 +308,60 @@ el hook de resolución que lo arregla.
 | 4 — Dashboard e ingreso extra | ✅ dashboard, deudas e ingresos sobre datos reales; probado end-to-end |
 | 5 — Check-in y cron | ✅ flujo, API, progreso por objetivo y recordatorio; probado contra la base |
 | 6 — Objetivos | ✅ CRUD de intenciones, candado de 30 días y cierre; probado contra la base |
-| 7 — Sesión y contenedor | 🟨 refresh token probado en base y en navegador; el Docker está escrito pero **sin construir** |
-| 8 — QA y puesta en producción | 🟨 **en curso** — el recorrido visual está hecho y aprobado; faltan las pruebas de seguridad y el despliegue |
+| 7 — Sesión y contenedor | ✅ refresh token probado en base y en navegador; la imagen se construye y corre en el VPS |
+| 8 — QA y puesta en producción | ✅ **la app está en producción** en `https://coach.agotech.cloud`, validada en navegador el 2026-08-13 |
 
-### Lo que queda, en orden
+### El despliegue — hecho el 2026-08-13
 
-1. ~~IDOR con dos cuentas reales (RNF-005)~~ — **hecho de verdad**, 15/15 sin
-   hallazgos. Ver "La prueba de IDOR" más abajo.
-2. ~~Que el admin no vea cifras de nadie (RNF-006)~~ — probado por el usuario.
-3. ~~Borrar `app/(dashboard)/estilo/`~~ — eliminada. Vive en el historial de git
-   por si hace falta volver a mirar el sistema completo de un vistazo.
-4. **Construir la imagen por primera vez** — hazlo en el VPS, no en el Mac: así
-   el primer build ocurre en linux/amd64, que es la arquitectura que importa.
-5. **Desplegar** siguiendo `docs/OPERACIONES.md` §1.
+**La app está en producción en `https://coach.agotech.cloud`**, validada en
+navegador. Vive en `/opt/debs_coach` —no `/opt/coach`, como decía
+`docs/OPERACIONES.md` §1.2 hasta esa fecha—, en Docker, contra el
+`shared_postgres` del VPS y detrás del Nginx del host con certificado de Let's
+Encrypt.
 
-Antes del paso 5 hacen falta cosas que solo puede preparar el usuario.
-Comprobadas por DNS el 2026-08-13:
+El DNS y Resend quedaron comprobados con `dig`: `coach.agotech.cloud` resuelve
+a la misma IP que `agotech.cloud`, y el dominio de envío tiene DKIM
+(`resend._domainkey.mail.agotech.cloud`), SPF y MX (`send.mail.agotech.cloud` →
+`feedback-smtp.sa-east-1.amazonses.com`) y un DMARC `p=none` en la raíz.
 
-- ✅ **Subdominio**: `coach.agotech.cloud` resuelve a la misma IP que
-  `agotech.cloud`. Es el `APP_URL` de producción; tiene que coincidir con el
-  `server_name` de Nginx y con el dominio del certificado.
-- ✅ **Resend**: DKIM (`resend._domainkey.mail.agotech.cloud`), SPF y MX
-  (`send.mail.agotech.cloud` → `feedback-smtp.sa-east-1.amazonses.com`) y un
-  DMARC `p=none` en la raíz. Falta solo confirmar en el panel de Resend que el
-  dominio figure verificado; el DNS ya está.
-- ⬜ `OPENAI_API_KEY` de producción.
-- ⬜ Un `JWT_SECRET` nuevo — `scripts/generar-secreto-jwt.mts`.
-- ⬜ El usuario `coach_app` con su base dentro de `shared_postgres`.
+El seed corrió, así que el administrador existe y desde él se invita al resto.
 
-**El archivo de entorno del VPS lo escribe el usuario a mano**, copiándolo al
-servidor. Hubo un script que lo generaba preguntando los valores; se descartó
-por decisión suya. Si alguien lo rehace, lo que había que cuidar era:
-URL-encodear la contraseña dentro de `DATABASE_URL` —una `@` sin escapar da un
-`P1001` que parece un problema de red—, permisos 600 y que el archivo quede en
-`/opt/debs_coach/.env`, que es donde lo busca el `env_file` del compose.
+**Lo que falta y no es opcional: los respaldos.** El cron de `§4` de
+`docs/OPERACIONES.md` **no está instalado**, así que hoy la app está en
+producción con datos reales y sin ninguna copia. `scripts/backup-db.sh` está
+escrito y probado en su sintaxis, pero nunca se ha ejecutado contra la base de
+producción, y un respaldo que nadie ha restaurado no es un respaldo.
 
-**Un agente no puede entrar al VPS.** Verificado de nuevo el 2026-08-13:
+**Los cuatro tropiezos del primer despliegue.** Los cuatro eran de
+configuración, no de código, y ninguno estaba en la documentación:
+
+1. **El archivo de entorno de desarrollo, copiado tal cual.** `DATABASE_URL`
+   apuntaba a `127.0.0.1:5433` —el extremo local del túnel SSH— y las
+   migraciones murieron con `P1001`. Dentro de un contenedor `127.0.0.1` es
+   **ese contenedor**, así que cambiar solo el puerto no arregla nada: el host
+   tiene que ser `shared_postgres:5432`, el nombre del contenedor. El resto de
+   variables de desarrollo fallan **en silencio**, que es peor: un `APP_URL` de
+   `localhost` deja inservibles todas las invitaciones que se envíen.
+2. **El Nginx del VPS no usa `sites-available`/`sites-enabled`.** Es el del
+   repo de nginx.org, que carga de `/etc/nginx/conf.d/*.conf`. El
+   procedimiento con `ln -s` de §1.5 no aplica; el archivo se deja en `conf.d/`
+   y ya está.
+3. **El certificado va ANTES de instalar la configuración.** La plantilla trae
+   el bloque 443 apuntando a `/etc/letsencrypt/live/…/fullchain.pem`, así que
+   `nginx -t` falla si el certificado no existe todavía —y con Nginx sin
+   recargar, certbot tampoco puede trabajar—. La salida es
+   `certbot certonly --nginx -d …`, que emite sin tocar ninguna configuración
+   y no molesta a los otros sitios del VPS.
+4. **`node:24-slim` no trae `openssl`**, y Prisma avisa en cada corrida de
+   migraciones de que no puede detectar la versión de libssl. **No impide
+   nada** —las migraciones aplican bien—, pero conviene cerrarlo añadiendo el
+   paquete a la etapa `constructor` del Dockerfile, que es la que corre
+   `migrate deploy` y el seed.
+
+**Un agente no puede entrar al VPS.** Verificado el 2026-08-13:
 `ssh -o BatchMode=yes root@agotech.cloud` responde `Permission denied
-(publickey…)`. Los pasos 4 y 5 los ejecuta el usuario.
+(publickey…)`. Todo lo que toque el servidor lo ejecuta el usuario; el trabajo
+del agente es dejarle los comandos y leer los logs que pegue.
 
 ### La prueba de IDOR (RNF-005)
 
@@ -494,13 +510,12 @@ huérfano desde antes del Sprint 4, nunca tuvo pantalla—. Si `docs/plan.md` o
 código de hoy: **no la recrees**. Toda pantalla consulta la base.
 
 Pendientes conocidos:
-- **La imagen de Docker nunca se ha construido.** No hay Docker en la máquina
-  de desarrollo, así que `Dockerfile` y `compose.yaml` están escritos y
-  razonados pero sin ejecutar. Lo que sí se probó, y es la parte que más
-  fácilmente se rompe, es la salida `standalone`: arranca, sirve las páginas y
-  los estáticos —tras copiar `public/` y `.next/static/` a mano, como hace el
-  Dockerfile— y el planificador del cron se programa dentro de ella. El primer
-  `docker compose up --build` es del Sprint 8.
+- **`node:24-slim` no trae `openssl` y Prisma avisa en cada migración.** No
+  rompe nada, pero el aviso ocupa cuatro líneas y entierra los mensajes que sí
+  importan. Se cierra añadiendo el paquete a la etapa `constructor` del
+  Dockerfile —la que corre `migrate deploy` y el seed—; la etapa de ejecución
+  no lo necesita, porque Prisma 7 habla con la base por el driver adapter de JS
+  y no por el motor Rust.
 - **El túnel SSH se cae solo y hay que reabrirlo a mano.** Un agente no puede:
   la llave pide autenticación interactiva y responde `Permission denied
   (publickey)`. Si aparece `P1001` a mitad de una sesión, es esto — pídeselo al

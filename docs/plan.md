@@ -299,7 +299,7 @@ instala PostgreSQL ni se toca `pg_hba.conf`.
 5. Verificar el ciclo de sesión en navegador: cerrar sesión, volver a los 25 h y comprobar que entra sin re-autenticarse.
 
 **Puesta en producción:**
-1. Instalar Docker y git en el VPS si faltaran; clonar en `/opt/coach`.
+1. Instalar Docker y git en el VPS si faltaran; clonar en `/opt/debs_coach`.
 2. Crear usuario y base dentro de `shared_postgres`, y el `.env` de producción.
 3. `docker compose up -d --build` y `docker compose run --rm migraciones npx prisma db seed`.
 4. Nginx + certbot con la plantilla versionada.
