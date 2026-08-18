@@ -17,6 +17,7 @@ Todo el código —identificadores, comentarios, mensajes de error— va en
 | `docs/DIRECTRICES_DISENO.md` | Cómo se ve y cómo se escribe. §19 es el tono de voz. |
 | `docs/plan.md` | En qué orden. **Parcialmente desactualizado** — ver más abajo. Su Sprint 7 (PM2, Nginx, PostgreSQL en el host) quedó sustituido por Docker. |
 | `docs/OPERACIONES.md` | Cómo se despliega, se actualiza y se restaura. Se lee con la app caída. |
+| `docs/ESPECIFICACION_GASTOS.md` | Feature del Sprint 9 —gastos fijos editables y gasto grande puntual—, todavía sin implementar. Continúa la numeración de la ETR desde RF-039 y RNF-015. |
 
 ## Cambios de ruptura ya verificados
 
@@ -310,6 +311,7 @@ el hook de resolución que lo arregla.
 | 6 — Objetivos | ✅ CRUD de intenciones, candado de 30 días y cierre; probado contra la base |
 | 7 — Sesión y contenedor | ✅ refresh token probado en base y en navegador; la imagen se construye y corre en el VPS |
 | 8 — QA y puesta en producción | ✅ **la app está en producción** en `https://coach.agotech.cloud`, validada en navegador el 2026-08-13 |
+| 9 — Gastos editables y gasto puntual | 📋 especificado (`docs/ESPECIFICACION_GASTOS.md`) y planificado (`docs/plan.md`). **Sin empezar.** Primera feature contra producción: antes de su migración hay que tener respaldo |
 
 ### El despliegue — hecho el 2026-08-13
 

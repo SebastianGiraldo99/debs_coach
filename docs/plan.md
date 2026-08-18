@@ -310,6 +310,168 @@ Todo el detalle está en `docs/OPERACIONES.md`; aquí solo queda el orden.
 
 ---
 
+## Sprint 9 — Gastos editables y gasto puntual considerable (Día 18+)
+
+Primera feature **después de producción**. La especificación completa —25
+requerimientos, historias con criterios de aceptación, modelo de datos y
+riesgos— está en `docs/ESPECIFICACION_GASTOS.md`; aquí solo va el orden de
+ejecución.
+
+Cierra el hueco de que los gastos fijos solo se capturan en el onboarding y no
+se pueden volver a tocar, y añade el gasto grande puntual (RF-039 a RF-063,
+RNF-015 a RNF-025).
+
+**Antes de tocar nada:**
+- Rama aparte de `main`. La app está en producción: `main` es lo que corre.
+- Abrir el túnel SSH (`ssh -fN -L 5433:127.0.0.1:5432 root@agotech.cloud`). Si
+  aparece `P1001` a mitad del sprint, es el túnel, no el código.
+- `rm -rf .next` si el typecheck se queja de archivos `"… 2.ts"` (iCloud).
+
+---
+
+### Paso 1 — El dato (migración + API individual)
+
+1. **`prisma/schema.prisma`:**
+   - Modelo `EgresoExtra` → tabla `egresos_extra`: `monto`, `moneda`,
+     `descripcion` (obligatoria), `fecha @db.Date`, índice
+     `[usuarioId, fecha]`. **Sin categoría, a propósito** (RF-049).
+   - Valor nuevo `egreso_extra` en el enum `TipoEvento`.
+   - Relación inversa `egresosExtra EgresoExtra[]` en `Usuario`.
+2. **Migración por la ruta no interactiva** —añadir un valor a un enum no
+   dispara el diálogo de Prisma, pero el procedimiento del proyecto es este y
+   no se improvisa:
+   ```bash
+   npx prisma migrate diff --from-config-datasource prisma.config.ts \
+     --to-schema-datamodel prisma/schema.prisma --script \
+     > prisma/migrations/<timestamp>_gastos_editables/migration.sql
+   npx prisma migrate deploy
+   npx prisma generate    # migrate no regenera el cliente de forma fiable
+   ```
+3. **`app/api/egresos/route.ts` → añadir `POST`.** El `PUT` **no se toca**:
+   borra la lista entera y queda reservado al onboarding (RF-063). Dejarlo
+   dicho en un comentario del handler — es el riesgo R4 del spec y el más caro.
+4. **`app/api/egresos/[id]/route.ts` (nuevo):** `PATCH` y `DELETE`. `params` es
+   una promesa. El `usuarioId` sale de la sesión; id ajeno → **404**.
+5. **Eventos:** las tres operaciones escriben `egreso_actualizado` con
+   `{ egresoId, accion: "alta"|"edicion"|"baja", monto }`. Copiar el patrón de
+   `app/api/ingresos/[id]/route.ts`, que ya lo hace.
+6. **`lib/finanzas/esquemas.ts`:** reutilizar `esquemaEgreso` para el alta y la
+   edición. zod 4: los enums necesitan `{ error: "..." }`.
+
+**Verificación (curl con sesión real, como en el Sprint 6):** alta → 201 y fila
+en base; `PATCH` propio → 200; `PATCH` con uuid de otro usuario real → 404;
+`DELETE` propio → 200 y repetido → 404; sin cookie → 401.
+
+**Commit:** `feat(gastos): alta, edición y baja individual de gastos fijos`
+
+---
+
+### Paso 2 — La pestaña
+
+1. **`app/(dashboard)/gastos/page.tsx`:** Server Component, todas las consultas
+   en un solo `Promise.all` (RNF-018). Dos secciones: "Gastos fijos" con total
+   mensual y "Gastos grandes" (vacía todavía). Estado vacío que explique la
+   consecuencia, no que decore.
+2. **`components/gastos/dialogo-gasto-fijo.tsx`:** `"use client"`, con `trigger`
+   opcional y **su propio botón de alta dentro del cliente**. Un `<Plus/>` de
+   `lucide-react` creado en el servidor dentro de un `DialogTrigger asChild`
+   desaparece del HTML; costó cuatro pantallas y un sprint entero encontrarlo.
+   Reutilizar `CampoMoneda` tal cual — **no tocar su manejo del cursor**.
+3. **`components/layout/nav-principal.tsx`:** sexto enlace
+   `{ href: "/gastos", texto: "Gastos" }`, después de "Ingresos".
+
+**Verificación en navegador:** HU-01, HU-02 y HU-03 del spec a 1280px y 375px.
+Y la comprobación que no se salta: cargar `/gastos` con `javaScriptEnabled:
+false` y contar los botones del HTML del servidor.
+
+**Commit:** `feat(gastos): pestaña de gastos con edición de los fijos`
+
+---
+
+### Paso 3 — El gasto puntual
+
+1. **`lib/finanzas/umbral-gasto.ts` (nuevo):** la constante del 5% y la función
+   que decide. **Un solo sitio**: lo leen la validación del servidor y el texto
+   de ayuda de la pantalla. Duplicarlo da un formulario que promete lo que la
+   API rechaza — es exactamente el error que ya se evitó con el candado de 30
+   días de los objetivos.
+2. **`app/api/egresos/extra/route.ts` (nuevo) → `POST`:** `409` sin onboarding,
+   `422` bajo umbral (el cuerpo es válido; lo rechaza la regla de negocio),
+   `201` con evento `egreso_extra`. Fecha futura → rechazo de zod.
+   **No llama a `generarYGuardarPlan()`** (RF-059).
+   Fecha: `new Date(\`${fecha}T00:00:00Z\`)` o el día se corre en Colombia.
+3. **`app/api/egresos/extra/[id]/route.ts` (nuevo) → `DELETE`.**
+4. **`components/gastos/dialogo-gasto-grande.tsx`:** sin selector de categoría,
+   con ejemplos en el texto de ayuda (matrícula, reparación, impuesto, viaje) y
+   sin contadores ni rachas. El copy **es** el requerimiento (RF-049).
+5. **Sección "Gastos grandes"** en la pestaña: los 12 más recientes por fecha
+   descendente, con `formatearFechaUtc` —columna `@db.Date`— y el total del mes
+   en curso.
+
+**Verificación:** HU-04, HU-05 y HU-06. La prueba que importa: registrar un
+gasto puntual y comprobar en base que **no nació ningún `PlanIa`**.
+
+**Commit:** `feat(gastos): registro de gastos grandes puntuales con umbral`
+
+---
+
+### Paso 4 — Las cifras y la IA
+
+1. **`lib/finanzas/capacidad.ts`:** añadir `gastosPuntualesMes` y
+   `disponibleEsteMes` al tipo `Capacidad`. El mes en curso se define **aquí y
+   solo aquí**, en `America/Bogota`. `capacidadReal` **no cambia de
+   significado**: sigue siendo la cifra estructural.
+2. **`lib/finanzas/proyeccion.ts`:** no se toca. Es el punto: `proyectarDeuda()`
+   sigue recibiendo `capacidadReal` y nunca el disponible del mes. Si un gasto
+   de un día llegara ahí, se proyectaría como si se repitiera cada mes durante
+   años (riesgo R3).
+3. **`components/dashboard/cifras-clave.tsx`:** "Disponible este mes" pasa a
+   mostrar `disponibleEsteMes`, y su línea de contexto nombra los gastos
+   grandes cuando los hay. **Siguen siendo tres cifras**, no cuatro.
+4. **`lib/dashboard/datos.ts`:** el aviso de plan desactualizado se enciende
+   también si existe un gasto puntual con fecha posterior al plan vigente
+   (RF-061). Hoy solo compara capacidad y deuda, así que un gasto puntual —que
+   a propósito no mueve la capacidad— no encendería nada.
+5. **`lib/ia/contexto.ts`:** añadir los gastos puntuales de los últimos 30 días.
+   Es lo único que hace que el plan del próximo check-in sepa lo que pasó.
+
+**Verificación:** HU-07. Y la regresión que no es opcional: la gráfica de
+proyección y el "Faltan N meses" tienen que ser **idénticos** antes y después de
+registrar un gasto puntual.
+
+**Commit:** `feat(gastos): el disponible del mes descuenta los gastos grandes`
+
+---
+
+### Paso 5 — Cierre
+
+1. **`scripts/idor-sembrar.mts`:** sembrar gastos fijos y puntuales en las dos
+   cuentas. **Los uuid tienen que ser reales y ajenos** o la prueba no prueba
+   nada.
+2. **`scripts/idor-probar.mts`:** cuatro ataques nuevos —`PATCH` y `DELETE` de
+   `/api/egresos/[id]`, `DELETE` de `/api/egresos/extra/[id]`— **cada uno con
+   su control positivo** sobre el recurso propio de A. Objetivo: 19/19 sin
+   hallazgos.
+3. **Regresión completa:** onboarding de punta a punta —el `PUT` es el que más
+   pierde si alguien lo "unifica"— y un check-in completo con el contexto
+   ampliado.
+4. `npx tsc --noEmit`, `npm run lint`, `npm run build`.
+5. **Documentación, en el mismo cambio** (§17 del spec): RF/RNF nuevos en
+   `docs/ESPECIFICACION_TECNICA.md`, la pantalla en
+   `docs/DIRECTRICES_DISENO.md`, la sección "Los Gastos" en `CLAUDE.md` y esta
+   tabla de sprints.
+6. **Despliegue:** lo ejecuta el usuario. `git pull`, `docker compose up -d
+   --build` — el servicio `migraciones` aplica la migración antes de que la app
+   arranque. Y antes de eso, **el respaldo**, que sigue pendiente desde el
+   Sprint 8: es la primera migración contra datos reales de producción.
+
+**Commit:** `docs(gastos): requerimientos, pantalla y decisiones` + `test(seguridad): IDOR sobre los endpoints de gastos`
+
+**Archivos creados/modificados:** ver el Anexo A de
+`docs/ESPECIFICACION_GASTOS.md`.
+
+---
+
 ## Archivos Críticos Existentes a Reutilizar
 
 | Archivo | Contiene |
