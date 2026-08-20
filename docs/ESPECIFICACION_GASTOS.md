@@ -494,7 +494,7 @@ flowchart TD
 | Decisión | Único sitio | Por qué ahí |
 |---|---|---|
 | Umbral de "considerable" | `lib/finanzas/umbral-gasto.ts` | Lo leen la validación del servidor y el texto de la pantalla. Duplicarlo daría un formulario que promete lo que la API rechaza —el mismo error que ya se evitó con el candado de 30 días de los objetivos— |
-| Qué es el "mes en curso" | `lib/finanzas/capacidad.ts` | Una sola definición de los límites en `America/Bogota` |
+| Qué día es hoy y qué es el "mes en curso" | `lib/finanzas/calendario.ts` | Una sola definición de la zona `America/Bogota`. Estaba previsto en `capacidad.ts`, pero el tope de fecha del gasto puntual lo necesita desde `esquemas.ts`, y hacer que la validación importe el módulo que consulta la base sería atarlos por nada |
 | Cálculo del disponible | `calcularCapacidadReal()` | Ya devuelve el objeto `Capacidad`; se le añade `gastosPuntualesMes` y `disponibleEsteMes` |
 | Qué lee la IA | `lib/ia/contexto.ts` | Es el único sitio donde se arma lo que el modelo llega a ver |
 
@@ -797,6 +797,7 @@ components/
 
 lib/
   finanzas/capacidad.ts                  ← + gastosPuntualesMes, disponibleEsteMes
+  finanzas/calendario.ts                 ← NUEVO · la zona America/Bogota, en un solo sitio
   finanzas/umbral-gasto.ts               ← NUEVO · la constante y la regla, en un solo sitio
   finanzas/esquemas.ts                   ← + esquemaGastoExtra
   dashboard/datos.ts                     ← + aviso por gasto puntual posterior al plan

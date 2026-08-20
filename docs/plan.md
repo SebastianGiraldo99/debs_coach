@@ -418,9 +418,11 @@ gasto puntual y comprobar en base que **no nació ningún `PlanIa`**.
 ### Paso 4 — Las cifras y la IA
 
 1. **`lib/finanzas/capacidad.ts`:** añadir `gastosPuntualesMes` y
-   `disponibleEsteMes` al tipo `Capacidad`. El mes en curso se define **aquí y
-   solo aquí**, en `America/Bogota`. `capacidadReal` **no cambia de
-   significado**: sigue siendo la cifra estructural.
+   `disponibleEsteMes` al tipo `Capacidad`. Los límites del mes se definen en
+   `lib/finanzas/calendario.ts`, que el paso 3 ya creó para el tope de fecha del
+   gasto puntual: **una sola definición** de `America/Bogota` en toda la app.
+   `capacidadReal` **no cambia de significado**: sigue siendo la cifra
+   estructural.
 2. **`lib/finanzas/proyeccion.ts`:** no se toca. Es el punto: `proyectarDeuda()`
    sigue recibiendo `capacidadReal` y nunca el disponible del mes. Si un gasto
    de un día llegara ahí, se proyectaría como si se repitiera cada mes durante

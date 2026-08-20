@@ -3,9 +3,11 @@ import { Badge } from "@/components/ui/badge"
 import { EncabezadoPagina } from "@/components/layout/encabezado-pagina"
 import { EstadoVacio } from "@/components/estados/estado-vacio"
 import { DialogoGastoFijo, type GastoEditable } from "@/components/gastos/dialogo-gasto-fijo"
+import { DialogoGastoGrande } from "@/components/gastos/dialogo-gasto-grande"
 import { requerirUsuario } from "@/lib/auth/dal"
 import { prisma } from "@/lib/db/prisma"
 import { etiquetasCategoriaEgreso } from "@/lib/finanzas/etiquetas"
+import { umbralGastoConsiderable } from "@/lib/finanzas/umbral-gasto"
 import { formatearFechaUtc, formatearMoneda } from "@/lib/formato"
 
 /**
@@ -29,7 +31,7 @@ export default async function GastosPage() {
 
   // En paralelo, como en el dashboard: dos consultas en serie son dos viajes
   // por el túnel para nada.
-  const [fijos, grandes] = await Promise.all([
+  const [fijos, grandes, ingresos] = await Promise.all([
     prisma.egreso.findMany({
       where: { usuarioId: usuario.id },
       orderBy: { montoMensual: "desc" },
@@ -41,9 +43,18 @@ export default async function GastosPage() {
       take: GRANDES_VISIBLES,
       select: { id: true, descripcion: true, monto: true, fecha: true },
     }),
+    // Solo para el umbral del gasto grande: el texto del diálogo y la
+    // validación del servidor salen del mismo cálculo y no pueden discrepar.
+    prisma.ingreso.aggregate({
+      where: { usuarioId: usuario.id },
+      _sum: { montoMensual: true },
+    }),
   ])
 
   const totalMensual = fijos.reduce((suma, e) => suma + Number(e.montoMensual.toString()), 0)
+  const umbral = umbralGastoConsiderable(
+    Number(ingresos._sum.montoMensual?.toString() ?? 0),
+  )
 
   const editable = (e: (typeof fijos)[number]): GastoEditable => ({
     id: e.id,
@@ -57,6 +68,7 @@ export default async function GastosPage() {
       <EncabezadoPagina
         titulo="Tus gastos"
         descripcion="Lo que pagas cada mes y los gastos grandes que aparecen de vez en cuando."
+        accion={<DialogoGastoGrande moneda={moneda} umbral={umbral} />}
       />
 
       <section aria-labelledby="fijos-titulo" className="flex flex-col gap-4">

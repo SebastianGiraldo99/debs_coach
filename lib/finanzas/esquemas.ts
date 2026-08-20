@@ -1,5 +1,6 @@
 import { z } from "zod"
 
+import { hoyEnBogota } from "@/lib/finanzas/calendario"
 import {
   categoriasEgreso,
   categoriasIngreso,
@@ -73,6 +74,37 @@ export const esquemaIngresoExtra = z.object({
     .max(MONTO_MAXIMO),
   descripcion: z.string().trim().min(1, "Cuéntanos de qué fue.").max(80),
   fecha: z.iso.date({ error: "Revisa la fecha." }),
+})
+
+/**
+ * Un gasto grande y puntual (RF-047): lo que se pagó una vez y no se repite.
+ *
+ * Mismas exigencias que el ingreso extraordinario —monto estrictamente
+ * positivo, descripción obligatoria— por la misma razón: sin nombre no es un
+ * dato, y el Motor IA lo lee para escribir su prosa.
+ *
+ * La fecha **no puede ser futura**. Aquí se registra lo que ya ocurrió; lo que
+ * se ve venir se anota cuando llegue. Admitir el futuro obligaría a un estado
+ * previsto/ocurrido y a decidir qué pasa cuando la fecha llega y nadie lo
+ * confirma, que es otra feature.
+ *
+ * El tope se compara como cadena contra la fecha de Bogotá: son dos `YYYY-MM-DD`
+ * y el orden lexicográfico coincide con el cronológico, así que no hace falta
+ * construir un Date —que es justo donde se cuelan las zonas horarias—.
+ */
+export const esquemaGastoExtra = z.object({
+  monto: z
+    .number()
+    .finite()
+    .positive("Escribe cuánto pagaste.")
+    .max(MONTO_MAXIMO),
+  descripcion: z.string().trim().min(1, "Cuéntanos de qué fue.").max(80),
+  fecha: z
+    .iso
+    .date({ error: "Revisa la fecha." })
+    .refine((f) => f <= hoyEnBogota(), {
+      error: "Esa fecha todavía no llega. Anótalo cuando lo pagues.",
+    }),
 })
 
 /**
