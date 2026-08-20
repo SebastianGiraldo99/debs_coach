@@ -48,6 +48,7 @@ const enlaces = [
   { href: "/objetivos", texto: "Objetivos" },
   { href: "/deudas", texto: "Deudas" },
   { href: "/ingresos", texto: "Ingresos" },
+  { href: "/gastos", texto: "Gastos" },
   { href: "/checkin", texto: "Check-in" },
 ]
 
@@ -65,8 +66,11 @@ const enlaces = [
  * "Registrar ingreso extra" (§6.7) y competirían por el mismo pulgar.
  *
  * El corte va en `md` y no en `sm` para que la fila no llegue nunca a
- * desbordarse: a 640px los cinco enlaces más la marca y el botón de salir
- * caben justos, y "justo" en tipografía ajena al diseñador es "no cabe".
+ * desbordarse: a 640px los enlaces más la marca y el botón de salir caben
+ * justos, y "justo" en tipografía ajena al diseñador es "no cabe".
+ *
+ * Con "Gastos" son seis (Sprint 9). Es el techo: un séptimo obligaría a subir
+ * el corte a `lg` o a replantear la fila, no a apretarla.
  */
 export function NavPrincipal({ variante = "usuario" }: { variante?: "usuario" | "admin" }) {
   const pathname = usePathname()
