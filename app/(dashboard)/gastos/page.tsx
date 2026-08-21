@@ -7,6 +7,7 @@ import { DialogoGastoGrande } from "@/components/gastos/dialogo-gasto-grande"
 import { requerirUsuario } from "@/lib/auth/dal"
 import { prisma } from "@/lib/db/prisma"
 import { etiquetasCategoriaEgreso } from "@/lib/finanzas/etiquetas"
+import { calcularCapacidadReal } from "@/lib/finanzas/capacidad"
 import { umbralGastoConsiderable } from "@/lib/finanzas/umbral-gasto"
 import { formatearFechaUtc, formatearMoneda } from "@/lib/formato"
 
@@ -31,7 +32,7 @@ export default async function GastosPage() {
 
   // En paralelo, como en el dashboard: dos consultas en serie son dos viajes
   // por el túnel para nada.
-  const [fijos, grandes, ingresos] = await Promise.all([
+  const [fijos, grandes, ingresos, capacidad] = await Promise.all([
     prisma.egreso.findMany({
       where: { usuarioId: usuario.id },
       orderBy: { montoMensual: "desc" },
@@ -49,6 +50,9 @@ export default async function GastosPage() {
       where: { usuarioId: usuario.id },
       _sum: { montoMensual: true },
     }),
+    // Para el total del mes. Se reutiliza la función del dashboard en vez de
+    // sumar aquí: una segunda suma es una segunda definición de "mes en curso".
+    calcularCapacidadReal(usuario.id),
   ])
 
   const totalMensual = fijos.reduce((suma, e) => suma + Number(e.montoMensual.toString()), 0)
@@ -125,9 +129,17 @@ export default async function GastosPage() {
       </section>
 
       <section aria-labelledby="grandes-titulo" className="flex flex-col gap-4">
-        <h2 id="grandes-titulo" className="text-seccion font-semibold text-ink">
-          Gastos grandes
-        </h2>
+        <div className="flex flex-wrap items-baseline justify-between gap-2">
+          <h2 id="grandes-titulo" className="text-seccion font-semibold text-ink">
+            Gastos grandes
+          </h2>
+          {/* Solo cuando los hay: un "$0 este mes" es una invitación a llenarlo. */}
+          {capacidad.gastosPuntualesMes > 0 && (
+            <p className="text-menor text-ink-mute">
+              {formatearMoneda(capacidad.gastosPuntualesMes, moneda)} este mes
+            </p>
+          )}
+        </div>
         {grandes.length === 0 ? (
           <p className="max-w-[65ch] text-menor text-ink-soft text-pretty">
             Todavía no has anotado ninguno. Esto no es para el día a día: es para cuando pagas algo

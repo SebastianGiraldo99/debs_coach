@@ -58,24 +58,33 @@ function aNumero(valor: { toString(): string } | null): number | null {
 export async function cargarDashboard(usuario: UsuarioSesion): Promise<DatosDashboard> {
   const usuarioId = usuario.id
 
-  const [objetivos, planRegistro, deudas, capacidad, checkins] = await Promise.all([
-    prisma.objetivo.findMany({
-      where: { usuarioId, estado: "activo" },
-      orderBy: { createdAt: "asc" },
-      select: { intencion: true },
-    }),
-    prisma.planIa.findFirst({
-      where: { usuarioId },
-      orderBy: { createdAt: "desc" },
-      select: { contenido: true, createdAt: true },
-    }),
-    prisma.deuda.findMany({
-      where: { usuarioId, estado: "activa" },
-      select: { montoActual: true, tasaInteres: true, pagoMinimo: true },
-    }),
-    calcularCapacidadReal(usuarioId),
-    leerHistorialCheckins(usuarioId),
-  ])
+  const [objetivos, planRegistro, deudas, capacidad, checkins, ultimoGastoGrande] =
+    await Promise.all([
+      prisma.objetivo.findMany({
+        where: { usuarioId, estado: "activo" },
+        orderBy: { createdAt: "asc" },
+        select: { intencion: true },
+      }),
+      prisma.planIa.findFirst({
+        where: { usuarioId },
+        orderBy: { createdAt: "desc" },
+        select: { contenido: true, createdAt: true },
+      }),
+      prisma.deuda.findMany({
+        where: { usuarioId, estado: "activa" },
+        select: { montoActual: true, tasaInteres: true, pagoMinimo: true },
+      }),
+      calcularCapacidadReal(usuarioId),
+      leerHistorialCheckins(usuarioId),
+      // Para el aviso de plan viejo: un gasto grande no mueve la capacidad
+      // estructural, así que la comparación de cifras no lo detectaría nunca.
+      // Se mira el más reciente y se compara con la fecha del plan.
+      prisma.egresoExtra.findFirst({
+        where: { usuarioId },
+        orderBy: { createdAt: "desc" },
+        select: { createdAt: true },
+      }),
+    ])
 
   const plan = planRegistro ? leerPlan(planRegistro.contenido) : null
 
@@ -104,7 +113,14 @@ export async function cargarDashboard(usuario: UsuarioSesion): Promise<DatosDash
     planDesactualizado:
       plan !== null &&
       (Math.abs(plan.cifras.deudaTotal - capacidad.deudaTotal) > TOLERANCIA_DEUDA ||
-        Math.abs(plan.cifras.capacidadReal - capacidad.capacidadReal) > TOLERANCIA_CAPACIDAD),
+        Math.abs(plan.cifras.capacidadReal - capacidad.capacidadReal) > TOLERANCIA_CAPACIDAD ||
+        // Un gasto grande posterior al plan (RF-061). Sin esta rama el aviso no
+        // se encendería jamás por ellos: se descuentan del mes, no de la
+        // capacidad estructural, que es lo único que comparan las dos líneas de
+        // arriba. Sin umbral de monto: para llegar aquí ya pasó el suyo.
+        (planRegistro !== null &&
+          ultimoGastoGrande !== null &&
+          ultimoGastoGrande.createdAt > planRegistro.createdAt)),
     capacidad,
     numeroDeudas: deudas.length,
     proyeccion,
