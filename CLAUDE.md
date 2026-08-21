@@ -233,6 +233,49 @@ que la API rechaza.
   decide si ofrecerla, porque es la que sabe cuántas quedan activas. Con las 3
   ocupadas no se propone nada, que es lo honesto.
 
+## Los Gastos
+
+Los gastos fijos se capturaban solo en el paso 4 del onboarding y no había
+forma de volver a tocarlos: el único endpoint borraba la lista entera y la
+reescribía. Como la capacidad real sale de restarlos a los ingresos, un dato
+mal anotado deformaba las tres cifras, la proyección y todos los planes. El
+Sprint 9 abrió `/gastos` con el CRUD que faltaba y añadió el gasto grande
+puntual.
+
+- **Son dos cifras y no una, y ahí está toda la feature.** `capacidadReal` es
+  el margen mensual **estructural** y es la única que alimenta
+  `proyectarDeuda()`. `disponibleEsteMes` le resta los gastos grandes del mes
+  y es lo que se pinta bajo "Disponible este mes". Si los puntuales llegaran a
+  la proyección, una matrícula se simularía repetida cada mes durante años y el
+  "Faltan N meses" se dispararía. Verificado: $1.700.000 → -$2.300.000 con el
+  "Faltan 10 meses" intacto.
+- **`PUT /api/egresos` reemplaza la lista completa y es solo del onboarding**
+  (RF-063). El `POST` y `/api/egresos/[id]` son los de la pantalla. Unificarlos
+  borraría todos los gastos de quien solo quería añadir uno.
+- **El gasto grande NO dispara el Motor IA** (RF-059). RF-034 sigue fijando
+  tres disparadores; el gemelo del ingreso extra invita a añadir un cuarto y no
+  lo es. La compensación es el aviso de plan viejo, que necesitó una rama
+  propia en `datos.ts`: las dos comparaciones que había miran capacidad y
+  deuda, y un gasto puntual no mueve ninguna, así que no se encendería nunca.
+- **El umbral vive en `lib/finanzas/umbral-gasto.ts` y solo ahí.** Lo leen la
+  validación del servidor y el texto de ayuda del diálogo; duplicado da un
+  formulario que promete lo que la API rechaza. Es el **5% del ingreso
+  mensual**, relativo y no absoluto —"grande" no es lo mismo con dos millones
+  que con veinte, y una cifra fija tendría que elegir moneda—. Sin ingresos
+  registrados no aplica. Responde **422 y no 400**: el cuerpo es válido y lo
+  para la regla de negocio, así que el cliente puede explicar.
+- **El diálogo del gasto grande no tiene selector de categoría**, a propósito:
+  categorizar uno invita a categorizarlos todos y la app deja de ser un coach.
+  Es RF-049, no una omisión.
+- **`lib/finanzas/calendario.ts` es el único sitio que sabe qué hora es.**
+  `hoyEnBogota()`, `limitesDelMes()` y `haceDias()`. Los límites se construyen
+  en UTC porque las columnas `@db.Date` se guardan como medianoche UTC; el
+  corte de mes es el de Bogotá. Un gasto del día 1 cuenta, uno del último día
+  del mes anterior no.
+- **Borrar un gasto grande no borra su evento `egreso_extra`.** Hoy es inerte
+  —nadie pinta esos eventos y el contexto de la IA lee la tabla— pero si algún
+  día se pinta el historial, hay que descontarlos.
+
 ## El cron
 
 `instrumentation.ts` → `lib/cron/scheduler.ts`. **`register()` corre en todos
@@ -311,7 +354,7 @@ el hook de resolución que lo arregla.
 | 6 — Objetivos | ✅ CRUD de intenciones, candado de 30 días y cierre; probado contra la base |
 | 7 — Sesión y contenedor | ✅ refresh token probado en base y en navegador; la imagen se construye y corre en el VPS |
 | 8 — QA y puesta en producción | ✅ **la app está en producción** en `https://coach.agotech.cloud`, validada en navegador el 2026-08-13 |
-| 9 — Gastos editables y gasto puntual | 📋 especificado (`docs/ESPECIFICACION_GASTOS.md`) y planificado (`docs/plan.md`). **Sin empezar.** Primera feature contra producción: antes de su migración hay que tener respaldo |
+| 9 — Gastos editables y gasto puntual | ✅ código completo y verificado en navegador y contra la base. **Sin desplegar**: vive en la rama `sprint-9-gastos` |
 
 ### El despliegue — hecho el 2026-08-13
 
@@ -368,12 +411,15 @@ del agente es dejarle los comandos y leer los logs que pegue.
 ### La prueba de IDOR (RNF-005)
 
 `scripts/idor-sembrar.mts` monta dos cuentas completas y `scripts/idor-probar.mts`
-ataca con la sesión de una los recursos de la otra. **15/15 sin hallazgos.**
+ataca con la sesión de una los recursos de la otra. **22/22 sin hallazgos**
+—eran 15 hasta que el Sprint 9 añadió los tres endpoints de gastos y sus dos
+controles positivos—.
 
 ```bash
 RESEND_API_KEY= OPENAI_API_KEY= npm run dev     # deja libre el 3000, o usa BASE_URL
-npm run script -- scripts/idor-sembrar.mts      # imprime los ids en JSON
-BASE_URL=http://localhost:3000 npm run script -- scripts/idor-probar.mts '<ese JSON>'
+# El JSON de la siembra es multilínea: `tail -1` solo devuelve la llave de cierre.
+JSON=$(npm run script -- scripts/idor-sembrar.mts 2>/dev/null | sed -n '/^{/,$p')
+BASE_URL=http://localhost:3000 npm run script -- scripts/idor-probar.mts "$JSON"
 npm run script -- scripts/limpiar-datos-prueba.mts
 ```
 
@@ -391,7 +437,8 @@ la "simplifica":
   (ver "El Check-in"). Ahí la comprobación no es el status —responde 200— sino
   que el saldo y el `montoAcumulado` de B no se movieron, releídos de la base.
 
-Cubre los `[id]` de la URL —deudas, ingresos, objetivos, `logrado`— y los ids
+Cubre los `[id]` de la URL —deudas, ingresos, **gastos fijos**, **gastos
+grandes**, objetivos, `logrado`— y los ids
 que viajan en el **cuerpo**, que son los que se olvidan: `pagos[].deudaId` y
 `aportes[].objetivoId` del check-in, y el `ingresoExtraId` de generar-plan. Este
 último se comprueba sobre `construirContexto`, no sobre la prosa del plan: el

@@ -58,6 +58,7 @@ El resultado debe permitir a una persona recorrer la app completa en el navegado
 | `components/layout/` | `nav-principal.tsx`, `encabezado-pagina.tsx` |
 | `components/forms/` | `paso-formulario.tsx` (contenedor multi-paso), `lista-repetible.tsx`, `fila-deuda.tsx`, `fila-ingreso.tsx`, `fila-egreso.tsx` |
 | `components/dashboard/` | `siguiente-paso.tsx`, `cifras-clave.tsx`, `plan-accion.tsx`, `historial-checkins.tsx`, `dialogo-ingreso-extra.tsx`, `proyeccion-plegable.tsx` |
+| `components/gastos/` | `dialogo-gasto-fijo.tsx`, `dialogo-gasto-grande.tsx` (Sprint 9) |
 | `components/graficas/` | `grafica-deuda-tiempo.tsx`, `grafica-progreso.tsx` |
 | `components/estados/` | `estado-vacio.tsx`, `estado-cargando.tsx`, `estado-error.tsx` |
 
@@ -77,6 +78,7 @@ El resultado debe permitir a una persona recorrer la app completa en el navegado
 | `app/(dashboard)/objetivos/page.tsx` | `/objetivos` | Hasta 3 intenciones, con días para poder editar |
 | `app/(dashboard)/deudas/page.tsx` | `/deudas` | Tabla/lista editable de deudas |
 | `app/(dashboard)/ingresos/page.tsx` | `/ingresos` | Ingresos fijos + historial de extras |
+| `app/(dashboard)/gastos/page.tsx` | `/gastos` | Gastos fijos editables + gastos grandes puntuales (Sprint 9) |
 | `app/(dashboard)/checkin/page.tsx` | `/checkin` | Flujo de 3 pasos + pantalla de resultado |
 | `app/(admin)/admin/page.tsx` | `/admin` | Lista de usuarios: estado, último acceso, acciones |
 

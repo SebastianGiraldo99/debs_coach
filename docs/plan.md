@@ -310,7 +310,12 @@ Todo el detalle está en `docs/OPERACIONES.md`; aquí solo queda el orden.
 
 ---
 
-## Sprint 9 — Gastos editables y gasto puntual considerable (Día 18+)
+## Sprint 9 — Gastos editables y gasto puntual considerable (Día 18+) ✅
+
+**Completado.** Los cinco pasos están hechos y verificados; el detalle de lo que
+salió de cada uno vive en `CLAUDE.md`. Queda **sin desplegar**: el código está
+en la rama `sprint-9-gastos`.
+
 
 Primera feature **después de producción**. La especificación completa —25
 requerimientos, historias con criterios de aceptación, modelo de datos y
