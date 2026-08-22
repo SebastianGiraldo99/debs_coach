@@ -137,6 +137,15 @@ comprobar(
   `status ${r.status}`,
 )
 
+// Si esta pasara, A borraría de un golpe la intención, las deudas, los
+// ingresos y los gastos de B. La relectura del final lo confirma.
+r = await pedir("DELETE", `/api/admin/usuarios/${B.usuarioId}/onboarding`, cookieA)
+comprobar(
+  "DELETE /api/admin/usuarios/[id]/onboarding sin ser admin → 404, no 403",
+  r.status === 404,
+  `status ${r.status}`,
+)
+
 // ─── Check-in: ids ajenos en el CUERPO ─────────────────────────────────────
 // Aquí un id ajeno NO da 404: se ignora a propósito para no tumbar el
 // check-in entero. La comprobación es que los datos de B no se movieron.
@@ -169,6 +178,17 @@ console.log(`  (generar-plan con ingresoExtraId de B respondió ${r.status})`)
 r = await pedir("PATCH", `/api/deudas/${B.deudaId}`, "", { nombre: "Sin sesion", saldo: 1 })
 comprobar("PATCH /api/deudas/[id] sin cookie", r.status === 401, `status ${r.status}`)
 
+// Doble función: comprueba el 401 y hace de control positivo del ataque de
+// arriba. Ese endpoint no tiene cuerpo que zod pueda rechazar, así que una ruta
+// mal escrita daría 404 —el de Next— y se leería como una app segura. Un 401
+// solo puede venir del guardia, o sea de que la ruta existe y se alcanzó.
+r = await pedir("DELETE", `/api/admin/usuarios/${B.usuarioId}/onboarding`, "")
+comprobar(
+  "DELETE /api/admin/usuarios/[id]/onboarding sin cookie",
+  r.status === 401,
+  `status ${r.status}`,
+)
+
 // ─── Los datos de B, releídos de la base ───────────────────────────────────
 console.log("\n── Los datos de B después de todos los ataques ──")
 
@@ -178,7 +198,14 @@ const despues = {
   egreso: await prisma.egreso.findUnique({ where: { id: B.egresoId } }),
   objetivo: await prisma.objetivo.findUnique({ where: { id: B.objetivoId } }),
   egresoExtra: await prisma.egresoExtra.findUnique({ where: { id: B.egresoExtraId } }),
+  usuario: await prisma.usuario.findUnique({ where: { id: B.usuarioId } }),
 }
+
+comprobar(
+  "B sigue con su onboarding completado",
+  despues.usuario?.onboardingCompletadoEn != null,
+  `onboardingCompletadoEn=${despues.usuario?.onboardingCompletadoEn}`,
+)
 
 comprobar(
   "La deuda de B sigue existiendo, con su nombre y su saldo",
