@@ -78,6 +78,24 @@ Aplicación web responsive con autenticación, formularios de ingreso de datos, 
 | RF-005 | El administrador puede bloquear o desbloquear el acceso de cualquier usuario | Must |
 | RF-006 | El panel de administración muestra: lista de usuarios, estado (activo/bloqueado/pendiente), último acceso | Must |
 | RF-007 | Un usuario se considera "activo" cuando ha completado el onboarding (llenó todos los campos base) | Must |
+| RF-064 | El panel muestra, por usuario, si terminó el onboarding y cuándo | Must |
+| RF-065 | El administrador puede limpiar el onboarding de cualquier usuario: se borran su intención, sus deudas, sus ingresos y sus gastos fijos, y el usuario vuelve al flujo de onboarding en su siguiente acceso | Must |
+| RF-066 | Limpiar el onboarding exige una confirmación explícita que nombra a la persona y enumera qué se borra y qué se conserva | Must |
+| RF-067 | Limpiar el onboarding conserva la cuenta, la contraseña y el historial —check-ins, planes, eventos, ingresos extra y gastos grandes—, y no aplica a cuentas de administrador | Must |
+
+**Nota sobre la numeración.** RF-064 a RF-067 continúan desde
+`docs/ESPECIFICACION_GASTOS.md`, que llegó hasta RF-063. Van en este módulo
+porque son del panel de administración, no del onboarding: quien los ejecuta es
+el admin.
+
+**Nota sobre RF-006.** El panel muestra desde el Sprint 10 una sexta columna con
+el estado del onboarding (RF-064). Sigue sin mostrar un solo dato financiero
+(RNF-006): una fecha de progreso no es una cifra.
+
+**Nota sobre RF-013 y RF-034 — limpiar no dispara el Motor IA.** El plan se
+genera cuando la persona vuelve a cerrar el onboarding, que es el disparador que
+ya existe. Entre la limpieza y ese momento el usuario no tiene acceso al
+dashboard, así que no hay nada que recalibrar.
 
 ### Módulo de Onboarding
 

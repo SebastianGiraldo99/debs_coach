@@ -479,6 +479,134 @@ registrar un gasto puntual.
 
 ---
 
+## Sprint 10 — Limpiar el onboarding desde el panel (Día 19) ✅
+
+**Completado.** Los tres pasos están hechos y verificados; las decisiones que
+salieron de cada uno viven en la sección "Limpiar el onboarding" de `CLAUDE.md`.
+Queda **sin desplegar**, sobre la misma rama `sprint-9-gastos`.
+
+Feature pequeña, y por eso sin especificación aparte: los cuatro requerimientos
+—RF-064 a RF-067— están en el Módulo de Acceso y Administración de
+`docs/ESPECIFICACION_TECNICA.md`.
+
+Cierra el hueco de que los cuatro pasos del onboarding solo se pasan una vez.
+Una cuenta que empezó con datos disparatados no tenía forma de volver a
+empezar: el CRUD de deudas, ingresos y gastos permite corregir dato a dato,
+pero no rehacer el arranque. El admin ya podía aprobar, bloquear y desbloquear;
+esto le añade la tercera cosa que puede necesitar hacer sin ver un solo dato
+financiero (RNF-006).
+
+**Antes de tocar nada:**
+- La misma rama del Sprint 9. `main` sigue siendo lo que corre en producción.
+- Abrir el túnel SSH. Si aparece `P1001` a mitad del sprint, es el túnel.
+- **No hay migración, y es la diferencia con todos los sprints anteriores que
+  tocan datos.** Se borran filas de modelos que ya existen y se pone en null un
+  campo que ya existe. Si alguien acaba escribiendo una migración, es señal de
+  que se desvió del alcance.
+
+---
+
+### Paso 1 — El endpoint
+
+1. **`app/api/admin/usuarios/[id]/onboarding/route.ts`, un `DELETE`.** Endpoint
+   aparte y **no una cuarta `accion` del `PATCH` de al lado**: aquel es la
+   máquina de estados de la cuenta —aprobar, bloquear, desbloquear— con su
+   tabla de estado esperado por acción, y esto no cambia de estado, borra
+   datos.
+2. **`exigirAdmin()` primero**, que responde 404 y no 403 a quien no es admin.
+3. **Una transacción con cinco operaciones:** `deleteMany` de `objetivo`,
+   `deuda`, `ingreso` y `egreso` filtrando por `usuarioId`, y el `update` que
+   pone `onboardingCompletadoEn` en null. Todo o nada: media limpieza —sin
+   deudas pero con la fecha puesta— deja a la persona en el dashboard con
+   cifras que no describen nada.
+4. **Lo que NO se toca:** check-ins, planes, eventos, ingresos extra y gastos
+   grandes. Es el historial y es lo único que la app no puede reconstruir.
+5. **409 si la cuenta es de administrador**, igual que el cambio de estado.
+6. **Sin revocar sesiones**, a propósito: el DAL relee al usuario en cada
+   acceso y la persona cae en `/onboarding` en su siguiente navegación.
+7. **Sin llamar al Motor IA** (RF-034 sigue con tres disparadores): el plan sale
+   cuando vuelva a cerrar el onboarding.
+8. La respuesta devuelve `borrados` con las cuatro cuentas de filas, que es lo
+   que la pantalla usa para decir qué pasó. **En el log, cuentas y nunca
+   montos.**
+
+**Verificación (contra la base, con sesión real):** 200 con el contador
+correcto; las cuatro tablas en cero y el historial intacto; `onboardingCompletadoEn`
+en null; limpiar dos veces → 200 con todo en cero; el admin sobre sí mismo →
+409; uuid inexistente → 404; `/dashboard` de la persona limpiada → 307 a
+`/onboarding`.
+
+**Commit:** `feat(admin): el administrador puede limpiar el onboarding de un usuario`
+
+---
+
+### Paso 2 — El panel
+
+1. **`components/admin/dialogo-limpiar-onboarding.tsx`** (RF-066). El diálogo
+   nombra a la persona y su correo —es lo que distingue una fila de otra cuando
+   el clic fue en la equivocada—, separa "se borra" de "se conserva", y lleva el
+   nombre dentro del botón de confirmar. Cancelar es la salida natural.
+2. **`components/admin/tabla-usuarios.tsx`:** columna "Onboarding" con la fecha
+   o "Sin terminar" (RF-064), el botón en la celda de acciones y un aviso de
+   éxito con `role="status"` junto al de error que ya estaba.
+3. **El botón sale también con el onboarding sin terminar**: quien se quedó a
+   medias también puede necesitar empezar de cero. En la fila de un admin no
+   sale.
+4. **`app/(admin)/admin/page.tsx`:** añadir `onboardingCompletadoEn` al `select`
+   —es progreso, no dinero— y serializarlo como el `ultimoAcceso`.
+5. **`app/(admin)/layout.tsx` pasa a `max-w-5xl`.** Con seis columnas y dos
+   acciones por fila, a 768 px el botón de la derecha quedaba cortado. Va contra
+   §13 de `docs/DIRECTRICES_DISENO.md`, así que **el documento se corrige en el
+   mismo cambio**, con el motivo.
+6. El trigger es de solo texto, así que no hace falta que nazca dentro del
+   cliente —pero la tabla ya es un componente de cliente y ahí vive—. Ver "El
+   icono dentro de un DialogTrigger" en `CLAUDE.md`.
+
+**Verificación en navegador** (Chrome vía playwright, como el Sprint 8): a
+1280px y a 375px; Cancelar no borra nada; confirmar pinta el aviso y la fila
+pasa a "Sin terminar"; cero errores de consola; y el contexto con JavaScript
+desactivado tiene los mismos botones que el normal.
+
+**Commit:** `feat(admin): confirmación y columna de onboarding en el panel`
+
+---
+
+### Paso 3 — Cierre
+
+1. **`scripts/idor-probar.mts`:** dos comprobaciones nuevas —el endpoint sin ser
+   admin → 404, y sin cookie → 401— más la relectura de que B sigue con su
+   onboarding completado. Objetivo: 25/25 sin hallazgos.
+2. **El control positivo aquí es el 401**, y hay que dejarlo escrito: ese
+   endpoint no tiene cuerpo que zod pueda rechazar, así que una ruta mal escrita
+   daría el 404 de Next y el ataque se leería como seguro.
+3. **Regresión: el onboarding de punta a punta con la cuenta ya limpiada**, que
+   es el camino que la feature obliga a repetir. Lo que hay que mirar ahí: que
+   los cuatro pasos respondan 200, que el cierre entregue la capacidad, que no
+   queden duplicados y que la intención nueva arranque su propio candado de 30
+   días. De ahí salió también que un gasto grande del mes sobrevive a la
+   limpieza y sigue descontando del disponible.
+4. `npx tsc --noEmit`, `npm run lint`, `npm run build`.
+5. **Documentación, en el mismo cambio:** RF-064 a RF-067 en
+   `docs/ESPECIFICACION_TECNICA.md` con la nota de numeración, la excepción de
+   ancho en `docs/DIRECTRICES_DISENO.md`, la sección "Limpiar el onboarding" en
+   `CLAUDE.md` y este sprint.
+6. **Despliegue:** lo ejecuta el usuario. `git pull` y `docker compose up -d
+   --build`; **sin migración esta vez**, así que el servicio `migraciones` no
+   tiene nada que aplicar. El respaldo sigue pendiente desde el Sprint 8 y ya no
+   es solo por la migración: esta feature borra datos de producción a petición
+   del admin.
+
+**Commit:** `docs(admin): requerimientos y decisiones de limpiar el onboarding`
++ `test(seguridad): IDOR sobre el endpoint de limpiar onboarding`
+
+**Archivos creados:** `app/api/admin/usuarios/[id]/onboarding/route.ts`,
+`components/admin/dialogo-limpiar-onboarding.tsx`.
+**Modificados:** `app/(admin)/admin/page.tsx`, `app/(admin)/layout.tsx`,
+`components/admin/tabla-usuarios.tsx`, `scripts/idor-probar.mts`, los tres
+documentos y `CLAUDE.md`.
+
+---
+
 ## Archivos Críticos Existentes a Reutilizar
 
 | Archivo | Contiene |

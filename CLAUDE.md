@@ -276,6 +276,48 @@ puntual.
   —nadie pinta esos eventos y el contexto de la IA lee la tabla— pero si algún
   día se pinta el historial, hay que descontarlos.
 
+## Limpiar el onboarding
+
+`DELETE /api/admin/usuarios/[id]/onboarding` devuelve a alguien al onboarding
+(RF-065). Es lo que faltaba para arreglar una cuenta que empezó con datos
+disparatados: los cuatro pasos solo se pasan una vez y no había forma de
+repetirlos.
+
+- **Endpoint aparte del `PATCH` de al lado, y no una cuarta `accion`.** Aquel
+  es la máquina de estados de la cuenta —aprobar, bloquear, desbloquear— con su
+  tabla de estado esperado por acción; esto no cambia de estado, borra datos.
+  Como cuarta acción habría que colar una rama antes de esa tabla.
+- **Borra intención, deudas, ingresos y gastos fijos, y pone
+  `onboardingCompletadoEn` en null.** Todo dentro de una transacción: media
+  limpieza —sin deudas pero con la fecha puesta— deja a la persona en el
+  dashboard con cifras que no describen nada.
+- **No borra el historial**: check-ins, planes, eventos, ingresos extra y
+  gastos grandes se quedan. Queda apuntando a deudas y metas que ya no existen,
+  igual que el evento `egreso_extra` de un gasto borrado, y por el mismo
+  motivo: nadie lo pinta hoy y es lo único que la app no puede reconstruir.
+- **No revoca sesiones y es a propósito.** El DAL relee al usuario en cada
+  acceso, así que en su siguiente navegación cae en `/onboarding` sola.
+  Verificado: `/dashboard` responde 307. Echarla además de la sesión la
+  obligaría a escribir su contraseña para hacer lo que el admin acaba de
+  pedirle.
+- **Es idempotente**: limpiar dos veces responde 200 con todo en cero. La
+  cuenta del admin responde 409, igual que en el cambio de estado, y por eso la
+  tabla no le pinta el botón.
+- **No dispara el Motor IA.** El plan sale cuando la persona vuelve a cerrar el
+  onboarding, que es un disparador que ya existe (RF-034 sigue con tres).
+- **Un gasto grande del mes en curso sobrevive a la limpieza y sigue
+  descontando de "Disponible este mes".** Verificado: capacidad estructural de
+  $3.200.000 y disponible de $700.000 nada más rehacer el onboarding. Es
+  correcto —el gasto ocurrió— pero sorprende, y por eso el diálogo dice que los
+  gastos grandes se conservan.
+- **El botón aparece aunque el onboarding esté sin terminar**: quien se quedó a
+  medias también puede necesitar empezar de cero. La columna "Onboarding" de la
+  tabla es la que le dice al admin en qué caso está —es progreso, no dinero, así
+  que no choca con RNF-006—.
+- **El panel de administración va a `max-w-5xl`, no al `max-w-3xl` de §13.** Con
+  seis columnas y dos acciones por fila, a 768 px el botón de la derecha quedaba
+  cortado. Las directrices quedaron corregidas con el motivo.
+
 ## El cron
 
 `instrumentation.ts` → `lib/cron/scheduler.ts`. **`register()` corre en todos
@@ -355,6 +397,7 @@ el hook de resolución que lo arregla.
 | 7 — Sesión y contenedor | ✅ refresh token probado en base y en navegador; la imagen se construye y corre en el VPS |
 | 8 — QA y puesta en producción | ✅ **la app está en producción** en `https://coach.agotech.cloud`, validada en navegador el 2026-08-13 |
 | 9 — Gastos editables y gasto puntual | ✅ código completo y verificado en navegador y contra la base. **Sin desplegar**: vive en la rama `sprint-9-gastos` |
+| 10 — Limpiar el onboarding desde el panel | ✅ código completo, verificado en navegador y contra la base (10/10 del camino feliz, 25/25 de IDOR). **Sin desplegar**, sobre la misma rama |
 
 ### El despliegue — hecho el 2026-08-13
 
@@ -411,9 +454,10 @@ del agente es dejarle los comandos y leer los logs que pegue.
 ### La prueba de IDOR (RNF-005)
 
 `scripts/idor-sembrar.mts` monta dos cuentas completas y `scripts/idor-probar.mts`
-ataca con la sesión de una los recursos de la otra. **22/22 sin hallazgos**
+ataca con la sesión de una los recursos de la otra. **25/25 sin hallazgos**
 —eran 15 hasta que el Sprint 9 añadió los tres endpoints de gastos y sus dos
-controles positivos—.
+controles positivos, y 22 hasta que el Sprint 10 añadió el de limpiar el
+onboarding—.
 
 ```bash
 RESEND_API_KEY= OPENAI_API_KEY= npm run dev     # deja libre el 3000, o usa BASE_URL
@@ -443,8 +487,14 @@ que viajan en el **cuerpo**, que son los que se olvidan: `pagos[].deudaId` y
 `aportes[].objetivoId` del check-in, y el `ingresoExtraId` de generar-plan. Este
 último se comprueba sobre `construirContexto`, no sobre la prosa del plan: el
 contexto es exactamente lo que el modelo llegaría a leer y no depende del
-proveedor ni gasta tokens. También verifica que `/api/admin/usuarios/[id]`
-responda **404 y no 403** a quien no es admin, y 401 sin cookie.
+proveedor ni gasta tokens. También verifica que `/api/admin/usuarios/[id]` y su
+`/onboarding` respondan **404 y no 403** a quien no es admin, y 401 sin cookie.
+
+En el de limpiar el onboarding, el control positivo **es la comprobación del
+401**: ese endpoint no tiene cuerpo que zod pueda rechazar, así que una ruta mal
+escrita daría el 404 de Next y el ataque se leería como seguro. Un 401 solo
+puede venir del guardia. Lo cierra la relectura final, que confirma que a B no
+se le borró nada y que sigue con su onboarding completado.
 
 ### Las pruebas manuales: hechas, y lo que salieron de ellas
 
