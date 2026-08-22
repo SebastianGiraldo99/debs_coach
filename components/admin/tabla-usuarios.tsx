@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation"
 import { useState } from "react"
 
+import { DialogoLimpiarOnboarding } from "@/components/admin/dialogo-limpiar-onboarding"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { formatearFecha } from "@/lib/formato"
@@ -16,6 +17,8 @@ export type FilaUsuario = {
   estado: EstadoUsuario
   rol: "usuario" | "admin"
   ultimoAcceso: string | null
+  /** `null` mientras no lo haya terminado. Es progreso, no dato financiero. */
+  onboardingCompletadoEn: string | null
 }
 
 const etiquetaEstado: Record<EstadoUsuario, string> = {
@@ -45,9 +48,11 @@ export function TablaUsuarios({ usuarios }: { usuarios: FilaUsuario[] }) {
   const router = useRouter()
   const [ocupado, setOcupado] = useState<string | null>(null)
   const [aviso, setAviso] = useState<string | null>(null)
+  const [exito, setExito] = useState<string | null>(null)
 
   async function ejecutar(id: string, accion: string) {
     setAviso(null)
+    setExito(null)
     setOcupado(id)
     try {
       const respuesta = await fetch(`/api/admin/usuarios/${id}`, {
@@ -81,14 +86,21 @@ export function TablaUsuarios({ usuarios }: { usuarios: FilaUsuario[] }) {
         </p>
       )}
 
+      {exito && (
+        <p role="status" className="text-menor text-avance">
+          {exito}
+        </p>
+      )}
+
       <div className="overflow-x-auto rounded-card border border-line">
-        <table className="w-full min-w-[42rem] text-left text-menor">
+        <table className="w-full min-w-[52rem] text-left text-menor">
           <thead className="border-b border-line bg-surface-alt text-ink-mute">
             <tr>
               <th scope="col" className="px-4 py-3 font-medium">Nombre</th>
               <th scope="col" className="px-4 py-3 font-medium">Correo</th>
               <th scope="col" className="px-4 py-3 font-medium">Estado</th>
               <th scope="col" className="px-4 py-3 font-medium">Último acceso</th>
+              <th scope="col" className="px-4 py-3 font-medium">Onboarding</th>
               <th scope="col" className="px-4 py-3 font-medium">
                 <span className="sr-only">Acciones</span>
               </th>
@@ -112,17 +124,38 @@ export function TablaUsuarios({ usuarios }: { usuarios: FilaUsuario[] }) {
                   <td className="px-4 py-3 tabular-nums text-ink-soft">
                     {u.ultimoAcceso ? formatearFecha(u.ultimoAcceso) : "Nunca"}
                   </td>
-                  <td className="px-4 py-3 text-right">
-                    {accion && (
-                      <Button
-                        variant={accion.accion === "bloquear" ? "peligro" : "secondary"}
-                        size="sm"
-                        disabled={ocupado === u.id}
-                        onClick={() => ejecutar(u.id, accion.accion)}
-                      >
-                        {ocupado === u.id ? "…" : accion.texto}
-                      </Button>
-                    )}
+                  <td className="px-4 py-3 tabular-nums text-ink-soft">
+                    {u.onboardingCompletadoEn
+                      ? formatearFecha(u.onboardingCompletadoEn)
+                      : "Sin terminar"}
+                  </td>
+                  <td className="px-4 py-3">
+                    <div className="flex justify-end gap-2">
+                      {accion && (
+                        <Button
+                          variant={accion.accion === "bloquear" ? "peligro" : "secondary"}
+                          size="sm"
+                          disabled={ocupado === u.id}
+                          onClick={() => ejecutar(u.id, accion.accion)}
+                        >
+                          {ocupado === u.id ? "…" : accion.texto}
+                        </Button>
+                      )}
+                      {/* Sin condicionar a que el onboarding esté completo: quien
+                          se quedó a medias también puede necesitar empezar de
+                          cero, y la columna de al lado le dice al admin en qué
+                          caso está. La cuenta del propio admin no se toca. */}
+                      {u.rol !== "admin" && (
+                        <DialogoLimpiarOnboarding
+                          usuario={{ id: u.id, nombre: u.nombre, email: u.email }}
+                          onLimpiado={(mensaje) => {
+                            setAviso(null)
+                            setExito(mensaje)
+                            router.refresh()
+                          }}
+                        />
+                      )}
+                    </div>
                   </td>
                 </tr>
               )

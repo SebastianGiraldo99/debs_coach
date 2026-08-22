@@ -11,6 +11,10 @@ import { prisma } from "@/lib/db/prisma"
  * El `select` es explícito y deliberadamente corto: el admin no puede ver
  * datos financieros de nadie (RNF-006). Traer el usuario entero abriría la
  * puerta a que se filtre un campo sensible al añadirlo al schema más adelante.
+ *
+ * `onboardingCompletadoEn` sí entra: es progreso, no dinero —una fecha, no una
+ * cifra— y es lo que le dice al admin si tiene sentido limpiar el onboarding
+ * de alguien (RF-064 y RF-065).
  */
 export default async function AdminPage() {
   await requerirAdmin()
@@ -24,6 +28,7 @@ export default async function AdminPage() {
         estado: true,
         rol: true,
         ultimoAcceso: true,
+        onboardingCompletadoEn: true,
       },
       // Los pendientes primero: son los que piden una decisión.
       orderBy: [{ estado: "asc" }, { createdAt: "asc" }],
@@ -34,6 +39,7 @@ export default async function AdminPage() {
   const filas: FilaUsuario[] = usuarios.map((u) => ({
     ...u,
     ultimoAcceso: u.ultimoAcceso?.toISOString() ?? null,
+    onboardingCompletadoEn: u.onboardingCompletadoEn?.toISOString() ?? null,
   }))
 
   return (
