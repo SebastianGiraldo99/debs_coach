@@ -25,8 +25,10 @@ type Cuenta = {
   usuarioId: string
   objetivoId: string
   ingresoId: string
+  egresoId: string
   deudaId: string
   ingresoExtraId: string
+  egresoExtraId: string
 }
 
 const datos = JSON.parse(process.argv[2]) as Record<string, Cuenta>
@@ -77,7 +79,9 @@ console.log("Sesión de la atacante abierta.\n")
 const antes = {
   deuda: await prisma.deuda.findUnique({ where: { id: B.deudaId } }),
   ingreso: await prisma.ingreso.findUnique({ where: { id: B.ingresoId } }),
+  egreso: await prisma.egreso.findUnique({ where: { id: B.egresoId } }),
   objetivo: await prisma.objetivo.findUnique({ where: { id: B.objetivoId } }),
+  egresoExtra: await prisma.egresoExtra.findUnique({ where: { id: B.egresoExtraId } }),
 }
 
 console.log("── Ataques con la sesión de A contra los recursos de B ──")
@@ -101,6 +105,20 @@ comprobar("PATCH /api/ingresos/[id] ajeno", r.status === 404, `status ${r.status
 
 r = await pedir("DELETE", `/api/ingresos/${B.ingresoId}`, cookieA)
 comprobar("DELETE /api/ingresos/[id] ajeno", r.status === 404, `status ${r.status}`)
+
+// ─── Gastos fijos ──────────────────────────────────────────────────────────
+r = await pedir("PATCH", `/api/egresos/${B.egresoId}`, cookieA, {
+  categoria: "arriendo",
+  monto: 1,
+})
+comprobar("PATCH /api/egresos/[id] ajeno", r.status === 404, `status ${r.status}`)
+
+r = await pedir("DELETE", `/api/egresos/${B.egresoId}`, cookieA)
+comprobar("DELETE /api/egresos/[id] ajeno", r.status === 404, `status ${r.status}`)
+
+// ─── Gastos grandes puntuales ──────────────────────────────────────────────
+r = await pedir("DELETE", `/api/egresos/extra/${B.egresoExtraId}`, cookieA)
+comprobar("DELETE /api/egresos/extra/[id] ajeno", r.status === 404, `status ${r.status}`)
 
 // ─── Objetivos ─────────────────────────────────────────────────────────────
 r = await pedir("PATCH", `/api/objetivos/${B.objetivoId}`, cookieA, {
@@ -157,7 +175,9 @@ console.log("\n── Los datos de B después de todos los ataques ──")
 const despues = {
   deuda: await prisma.deuda.findUnique({ where: { id: B.deudaId } }),
   ingreso: await prisma.ingreso.findUnique({ where: { id: B.ingresoId } }),
+  egreso: await prisma.egreso.findUnique({ where: { id: B.egresoId } }),
   objetivo: await prisma.objetivo.findUnique({ where: { id: B.objetivoId } }),
+  egresoExtra: await prisma.egresoExtra.findUnique({ where: { id: B.egresoExtraId } }),
 }
 
 comprobar(
@@ -174,6 +194,20 @@ comprobar(
   despues.ingreso !== null &&
     String(despues.ingreso.montoMensual) === String(antes.ingreso!.montoMensual),
   `monto=${despues.ingreso?.montoMensual}`,
+)
+
+comprobar(
+  "El gasto fijo de B sigue existiendo, con su monto",
+  despues.egreso !== null &&
+    String(despues.egreso.montoMensual) === String(antes.egreso!.montoMensual),
+  `monto=${despues.egreso?.montoMensual}`,
+)
+
+comprobar(
+  "El gasto grande de B sigue existiendo, con su monto",
+  despues.egresoExtra !== null &&
+    String(despues.egresoExtra.monto) === String(antes.egresoExtra!.monto),
+  `monto=${despues.egresoExtra?.monto}`,
 )
 
 comprobar(
@@ -200,6 +234,22 @@ r = await pedir("PATCH", `/api/objetivos/${A.objetivoId}`, cookieA, {
   intencion: "Intencion editada por su propia dueña",
 })
 comprobar("PATCH de A sobre su propio objetivo funciona", r.status === 200, `status ${r.status}`)
+
+r = await pedir("PATCH", `/api/egresos/${A.egresoId}`, cookieA, {
+  categoria: "arriendo",
+  monto: 1_600_000,
+})
+comprobar("PATCH de A sobre su propio gasto fijo funciona", r.status === 200, `status ${r.status}`)
+
+// Va antes del DELETE del ingreso: borrarlo deja a A sin ingresos, y sin
+// ingresos no hay umbral —el gasto grande pasaría por otro camino y el control
+// dejaría de medir lo que dice medir.
+r = await pedir("DELETE", `/api/egresos/extra/${A.egresoExtraId}`, cookieA)
+comprobar(
+  "DELETE de A sobre su propio gasto grande funciona",
+  r.status === 200,
+  `status ${r.status}`,
+)
 
 r = await pedir("DELETE", `/api/ingresos/${A.ingresoId}`, cookieA)
 comprobar("DELETE de A sobre su propio ingreso funciona", r.status === 200, `status ${r.status}`)

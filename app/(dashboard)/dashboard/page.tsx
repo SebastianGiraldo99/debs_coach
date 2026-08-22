@@ -116,7 +116,10 @@ export default async function DashboardPage(props: PageProps<"/dashboard">) {
 
       <CifrasClave
         moneda={datos.moneda}
-        disponible={datos.capacidad.capacidadReal}
+        // La del mes, no la estructural: es lo que promete la etiqueta. La
+        // estructural sigue mandando en `proyeccion`, unas líneas más abajo.
+        disponible={datos.capacidad.disponibleEsteMes}
+        gastosPuntualesMes={datos.capacidad.gastosPuntualesMes}
         deudaTotal={datos.capacidad.deudaTotal}
         numeroDeudas={datos.numeroDeudas}
         bajaDeuda={datos.bajaDeuda}

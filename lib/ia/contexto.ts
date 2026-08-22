@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db/prisma"
+import { haceDias } from "@/lib/finanzas/calendario"
 import { calcularCapacidadReal, type Capacidad } from "@/lib/finanzas/capacidad"
 import type { Moneda } from "@/lib/formato"
 import type { TipoDeuda } from "@/lib/finanzas/etiquetas"
@@ -46,10 +47,28 @@ export type ContextoFinanciero = {
   historial: { tipo: string; progresoPct: number | null; fecha: Date }[]
   trigger: Trigger
   ingresoExtra?: { monto: number; descripcion: string }
+  /**
+   * Gastos grandes y puntuales recientes (RF-060).
+   *
+   * Registrarlos NO dispara el motor, así que el modelo los ve por primera vez
+   * en el siguiente plan —el del check-in—. Sin esto, aconsejaría sobre un mes
+   * que no ocurrió: "abona $1.700.000" a quien acaba de pagar una matrícula de
+   * cuatro millones.
+   */
+  gastosGrandes: { monto: number; descripcion: string; fecha: Date }[]
 }
 
 /** Últimos eventos que se le muestran al modelo. Más es ruido y más tokens. */
 const EVENTOS_HISTORIAL = 5
+
+/**
+ * Cuántos días atrás cuenta un gasto grande como "reciente".
+ *
+ * Treinta cubre el mes que el modelo está aconsejando y un poco más, que es lo
+ * que hace falta para que un gasto de fin de mes siga explicando el apretón de
+ * principios del siguiente.
+ */
+const DIAS_GASTOS_GRANDES = 30
 
 function aNumero(valor: { toString(): string } | null | undefined): number | null {
   return valor === null || valor === undefined ? null : Number(valor.toString())
@@ -67,7 +86,7 @@ export async function construirContexto(
   trigger: Trigger,
   ingresoExtraId?: string,
 ): Promise<ContextoFinanciero> {
-  const [usuario, objetivos, deudas, eventos, capacidad] = await Promise.all([
+  const [usuario, objetivos, deudas, eventos, capacidad, gastosGrandes] = await Promise.all([
     prisma.usuario.findUnique({
       where: { id: usuarioId },
       select: { nombre: true, monedaBase: true },
@@ -95,6 +114,11 @@ export async function construirContexto(
       select: { tipo: true, progresoPct: true, createdAt: true },
     }),
     calcularCapacidadReal(usuarioId),
+    prisma.egresoExtra.findMany({
+      where: { usuarioId, fecha: { gte: haceDias(DIAS_GASTOS_GRANDES) } },
+      orderBy: { fecha: "desc" },
+      select: { monto: true, descripcion: true, fecha: true },
+    }),
   ])
 
   if (!usuario) throw new ContextoIncompletoError("El usuario no existe.")
@@ -134,6 +158,11 @@ export async function construirContexto(
       montoActual: aNumero(d.montoActual) ?? 0,
       tasaInteres: aNumero(d.tasaInteres),
       pagoMinimo: aNumero(d.pagoMinimo),
+    })),
+    gastosGrandes: gastosGrandes.map((g) => ({
+      monto: aNumero(g.monto) ?? 0,
+      descripcion: g.descripcion,
+      fecha: g.fecha,
     })),
     // `desc` para traer los últimos; se invierte para leerlos en orden natural.
     historial: eventos.reverse().map((e) => ({

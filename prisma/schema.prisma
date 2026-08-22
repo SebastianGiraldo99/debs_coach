@@ -81,6 +81,11 @@ enum TipoEvento {
   objetivo_creado
   objetivo_logrado
   ingreso_extra
+  /// Un gasto grande y puntual (RF-047). Valor propio y no `egreso_actualizado`
+  /// con un discriminador en el payload porque el historial tendrá que
+  /// distinguirlos: aquel cambió la estructura del mes, este fue un golpe de
+  /// un día.
+  egreso_extra
   plan_generado
 }
 
@@ -140,6 +145,7 @@ model Usuario {
   ingresos       Ingreso[]
   egresos        Egreso[]
   ingresosExtra  IngresoExtra[]
+  egresosExtra   EgresoExtra[]
   checkIns       CheckIn[]
   planesIa       PlanIa[]
   eventos        Evento[]
@@ -302,6 +308,42 @@ model IngresoExtra {
   usuario Usuario @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
 
   @@map("ingresos_extra")
+}
+
+/// Un gasto grande que ocurrió una vez y no se repite: la matrícula, la
+/// reparación del carro, el impuesto anual del vehículo.
+///
+/// Es un modelo aparte de `Egreso` y no una fila más con una bandera porque
+/// significan cosas distintas. `Egreso` es un compromiso mensual y entra en la
+/// capacidad real, que es el margen con el que se proyecta la deuda a años
+/// vista; esto ocurrió un día y solo afecta a su mes. Mezclarlos haría que una
+/// matrícula empujara el "Faltan N meses" como si se pagara doce veces.
+///
+/// Sin categoría a propósito (RF-049): la app no es un control de gastos y un
+/// selector de categorías es la primera invitación a registrarlo todo.
+model EgresoExtra {
+  id          String   @id @default(uuid())
+  usuarioId   String   @map("usuario_id")
+  monto       Decimal  @db.Decimal(15, 2)
+  moneda      Moneda   @default(COP)
+
+  /// Obligatoria, igual que en IngresoExtra: un gasto sin nombre no es un
+  /// dato, y el Motor IA la lee para escribir su prosa.
+  descripcion String
+
+  /// El día en que ocurrió, nunca futuro. Columna DATE: se escribe y se lee en
+  /// UTC (`new Date("YYYY-MM-DDT00:00:00Z")` y `formatearFechaUtc`) o en
+  /// Colombia el día se corre uno hacia atrás.
+  fecha       DateTime @db.Date
+
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  usuario Usuario @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+
+  /// La consulta que sostiene la cifra del mes: gastos de un usuario dentro de
+  /// un rango de fechas.
+  @@index([usuarioId, fecha])
+  @@map("egresos_extra")
 }
 
 model CheckIn {

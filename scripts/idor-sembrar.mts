@@ -71,13 +71,27 @@ for (const cuenta of CUENTAS) {
           },
         ],
       },
+      egresosExtra: {
+        create: [
+          {
+            monto: 2_500_000,
+            moneda: "COP",
+            descripcion: `Matricula secreta de ${cuenta.nombre}`,
+            fecha: new Date("2026-08-05T00:00:00Z"),
+          },
+        ],
+      },
     },
     select: {
       id: true,
       objetivos: { select: { id: true } },
       ingresos: { select: { id: true } },
+      // El de arriendo, no el de impuestos: da igual cuál, pero conviene que
+      // sea siempre el mismo para que el detalle del fallo se lea igual.
+      egresos: { select: { id: true }, where: { categoria: "arriendo" } },
       deudas: { select: { id: true } },
       ingresosExtra: { select: { id: true } },
+      egresosExtra: { select: { id: true } },
     },
   })
 
@@ -86,8 +100,10 @@ for (const cuenta of CUENTAS) {
     usuarioId: usuario.id,
     objetivoId: usuario.objetivos[0].id,
     ingresoId: usuario.ingresos[0].id,
+    egresoId: usuario.egresos[0].id,
     deudaId: usuario.deudas[0].id,
     ingresoExtraId: usuario.ingresosExtra[0].id,
+    egresoExtraId: usuario.egresosExtra[0].id,
   }
 }
 

@@ -1,6 +1,11 @@
 import type { ContextoFinanciero } from "@/lib/ia/contexto"
 import { etiquetasTipoDeuda } from "@/lib/finanzas/etiquetas"
-import { formatearFecha, formatearMoneda, simboloMoneda } from "@/lib/formato"
+import {
+  formatearFecha,
+  formatearFechaUtc,
+  formatearMoneda,
+  simboloMoneda,
+} from "@/lib/formato"
 
 /**
  * Los dos prompts del Motor IA.
@@ -83,6 +88,29 @@ Respondes SIEMPRE con un único objeto JSON válido, sin texto alrededor y sin b
     })
     .join("\n")
 
+  /**
+   * Los gastos grandes del último mes, si los hubo.
+   *
+   * Se le dan al modelo con su naturaleza explícita —ocurrieron una vez, no se
+   * repiten— porque si no los leería como parte del gasto mensual y recortaría
+   * el plan de los meses siguientes por un golpe que ya pasó.
+   */
+  const gastosGrandes =
+    ctx.gastosGrandes.length === 0
+      ? ""
+      : `\nGASTOS GRANDES DEL ÚLTIMO MES (ocurrieron UNA vez y NO se repiten; ya están descontados de este mes pero no de su capacidad mensual):\n` +
+        ctx.gastosGrandes
+          .map(
+            // `formatearFechaUtc` y no `formatearFecha`: la columna es @db.Date
+            // y Prisma la devuelve como medianoche UTC. Leerla en hora local
+            // corre el día uno hacia atrás en Colombia, y aquí eso significaría
+            // decirle al modelo que la matrícula se pagó el día anterior.
+            (g) =>
+              `- ${formatearFechaUtc(g.fecha, "corto")}: ${dinero(g.monto)} — "${g.descripcion}"`,
+          )
+          .join("\n") +
+        "\n"
+
   const contextoTrigger: Record<ContextoFinanciero["trigger"], string> = {
     onboarding: "Acaba de terminar el registro de sus datos. Este es su primer plan: preséntaselo como un punto de partida.",
     check_in: "Acaba de completar su check-in mensual. Reconoce lo que hizo y recalibra el plan.",
@@ -104,7 +132,7 @@ SITUACIÓN MENSUAL:
 
 DEUDAS ACTIVAS (total ${dinero(capacidad.deudaTotal)}):
 ${deudas}
-
+${gastosGrandes}
 ÚLTIMOS MOVIMIENTOS:
 ${historial}
 

@@ -140,6 +140,52 @@ Aplicación web responsive con autenticación, formularios de ingreso de datos, 
 | RF-037 | La intención original del usuario está siempre presente en el prompt del sistema enviado a la IA | Must |
 | RF-038 | El proveedor de IA es configurable vía variable de entorno (por defecto: OpenAI GPT-4o) | Must |
 
+### Módulo de Gastos (Sprint 9)
+
+Detalle completo, con historias de usuario y criterios de aceptación, en
+`docs/ESPECIFICACION_GASTOS.md`. Aquí solo el índice de requerimientos.
+
+| ID | Requerimiento | Prioridad |
+|---|---|---|
+| RF-039 | La barra de navegación incluye un enlace "Gastos" hacia `/gastos` | Must |
+| RF-040 | `/gastos` muestra dos secciones: gastos fijos (con total mensual) y gastos grandes | Must |
+| RF-041 | Sin gastos fijos, la sección explica que sin ellos no se puede calcular la capacidad | Must |
+| RF-042 | El usuario puede agregar un gasto fijo (categoría, monto, descripción opcional) | Must |
+| RF-043 | El usuario puede editar cualquier gasto fijo propio | Must |
+| RF-044 | El usuario puede eliminar un gasto fijo propio | Must |
+| RF-045 | Toda alta, edición o baja de gasto fijo escribe un evento `egreso_actualizado` | Must |
+| RF-046 | Al cambiar los gastos fijos, la capacidad real y las cifras se recalculan en la siguiente carga | Must |
+| RF-047 | El usuario puede registrar un gasto grande puntual: monto, descripción y fecha (nunca futura) | Must |
+| RF-048 | El sistema rechaza un gasto grande por debajo del 5% de los ingresos mensuales, explicando por qué | Must |
+| RF-049 | El formulario de gasto grande no ofrece categorías y la pantalla no premia registrar más gastos | Must |
+| RF-050 | Un gasto grande no modifica la lista de gastos fijos ni la capacidad real estructural | Must |
+| RF-051 | El usuario puede eliminar un gasto grande propio; no se edita | Should |
+| RF-052 | La sección lista los 12 gastos grandes más recientes, por fecha descendente | Must |
+| RF-053 | Registrar un gasto grande sin haber completado el onboarding responde 409 | Must |
+| RF-054 | "Disponible este mes" = capacidad real − gastos grandes del mes en curso, y su contexto lo dice | Must |
+| RF-055 | La proyección de deuda y el "Faltan N meses" usan la capacidad **estructural**, nunca el disponible del mes | Must |
+| RF-056 | "Disponible este mes" puede ser negativo y se muestra tal cual | Must |
+| RF-057 | El dashboard sigue mostrando exactamente tres cifras | Must |
+| RF-058 | `/gastos` muestra el total de gastos grandes del mes en curso | Should |
+| RF-059 | Ni el CRUD de gastos fijos ni el gasto grande disparan el Motor IA | Must |
+| RF-060 | Los gastos grandes de los últimos 30 días entran en el contexto del Motor IA | Must |
+| RF-061 | El aviso de plan desactualizado se enciende también con un gasto grande posterior al plan | Must |
+| RF-062 | El paso 4 del onboarding no cambia y sigue siendo obligatorio | Must |
+| RF-063 | `PUT /api/egresos` (reemplazo total) queda reservado al onboarding | Must |
+
+**Nota sobre RF-012.** Los gastos fijos que captura el paso 4 del onboarding ya
+**no quedan congelados**: RF-042 a RF-044 permiten corregirlos y ampliarlos
+después desde `/gastos`. El paso del onboarding no cambió.
+
+**Nota sobre RF-014.** La cifra "dinero disponible para objetivos" del dashboard
+descuenta desde el Sprint 9 los gastos grandes del mes en curso (RF-054). La
+proyección de tiempo sigue calculándose sobre la capacidad estructural.
+
+**Nota sobre RF-034 — sigue habiendo tres disparadores.** El gasto grande es el
+gemelo del ingreso extraordinario y la simetría invita a convertirlo en un
+cuarto, pero no lo es (RF-059). El plan se recalibra en el siguiente check-in y
+mientras tanto el dashboard avisa (RF-061).
+
 ---
 
 ## 6. Historias de Usuario con Criterios de Aceptación
@@ -226,6 +272,17 @@ Aplicación web responsive con autenticación, formularios de ingreso de datos, 
 | RNF-012 | **Mantenibilidad** | Variables de entorno para todas las credenciales externas (OpenAI, Resend, DB) |
 | RNF-013 | **Mantenibilidad** | El proveedor de IA es intercambiable vía variable de entorno sin cambios de código |
 | RNF-014 | **Observabilidad** | Errores de llamadas a la IA quedan logueados en servidor con contexto suficiente para debug |
+| RNF-015 | **Seguridad** | El `usuarioId` de los endpoints de gastos sale siempre de la sesión; un id ajeno responde 404, no 403 |
+| RNF-016 | **Seguridad** | Sin cookie de sesión, los endpoints de gastos responden 401 |
+| RNF-017 | **Privacidad** | Ningún dato de gastos aparece en el panel de administración |
+| RNF-018 | **Rendimiento** | `/gastos` carga en < 3 s, con todas sus consultas en paralelo |
+| RNF-019 | **Rendimiento** | El disponible del mes no añade una consulta por cifra: entra en el `Promise.all` existente |
+| RNF-020 | **Usabilidad** | `/gastos` es funcional a 375px, sin scroll horizontal |
+| RNF-021 | **Usabilidad** | Todo icono dentro de un `DialogTrigger asChild` nace en un componente cliente; se verifica cargando la página sin JavaScript |
+| RNF-022 | **Mantenibilidad** | El umbral del gasto grande vive en una sola constante, leída por la validación y por la pantalla |
+| RNF-023 | **Mantenibilidad** | La migración del Sprint 9 es puramente aditiva: ninguna columna se elimina ni se renombra |
+| RNF-024 | **Consistencia** | Los gastos se guardan en la `monedaBase` del usuario, sin conversión |
+| RNF-025 | **Observabilidad** | Los rechazos por umbral no se loguean con el monto |
 
 **Nota sobre RNF-001 — argon2id en lugar de bcrypt.** La versión original de este
 requerimiento pedía bcrypt con ≥ 12 rondas. Se implementó con **argon2id**
