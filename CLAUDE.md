@@ -314,9 +314,43 @@ repetirlos.
   medias también puede necesitar empezar de cero. La columna "Onboarding" de la
   tabla es la que le dice al admin en qué caso está —es progreso, no dinero, así
   que no choca con RNF-006—.
-- **El panel de administración va a `max-w-5xl`, no al `max-w-3xl` de §13.** Con
+- **El panel de administración va a `max-w-6xl`, no al `max-w-3xl` de §13.** Con
   seis columnas y dos acciones por fila, a 768 px el botón de la derecha quedaba
-  cortado. Las directrices quedaron corregidas con el motivo.
+  cortado; el Sprint 10 lo subió a `5xl` y la columna "Recalcular plan" del
+  Sprint 11 lo volvió a cortar a 1024. Las directrices quedaron corregidas.
+
+## Recalcular el plan (permiso por usuario)
+
+Un botón en "Tu plan" del dashboard, *"Recalcular con mis datos de hoy"*, que
+vuelve a pasar por el Motor IA los datos actuales (RF-068 a RF-070). Solo lo ve
+quien tiene `Usuario.puedeRecalcularPlan`, que el admin enciende persona por
+persona con la columna "Recalcular plan" del panel.
+
+- **No es repetir el check-in**, aunque se pidiera con esas palabras. El caso
+  real: alguien hace su check-in, se da cuenta de que no anotó una deuda nueva,
+  la añade en `/deudas` y quiere saber si cambia a qué pagar primero. Repetir el
+  check-in volvería a restar los abonos que ya restó el primero. Se repite solo
+  la llamada al motor: no escribe `CheckIn`, no toca saldos ni metas y no mueve
+  la fecha del próximo.
+- **No es un cuarto disparador.** El plan se guarda con trigger `check_in` —es
+  el plan del check-in rehecho— y `TriggerPlan` sigue con tres valores. Lo que
+  lo distingue es `recalculo: true` en el payload de `plan_generado` y un texto
+  de momento propio en el prompt (`MOMENTO_RECALCULO`), que le dice al modelo
+  que no hubo abonos: con el del check-in felicitaba por pagos que no ocurrieron.
+- **La barrera es `POST /api/ia/recalcular-plan`, no el botón**: sin el permiso
+  responde 403. El permiso se lee en el DAL, así que quitarlo surte efecto en la
+  siguiente petición, sin esperar a que venza el JWT.
+- **`PUT /api/admin/usuarios/[id]/permisos`** manda el valor que debe quedar
+  (`{ recalcularPlan: boolean }`), no un "invertir": un doble clic con la tabla
+  vieja deja lo que el admin vio. Endpoint aparte del `PATCH` por lo mismo que
+  el de limpiar el onboarding. Admin → 409, no admin → 404.
+- La ventana de 20 s contra el doble envío mira el trigger, así que un
+  recálculo pedido menos de 20 s después de otro plan de check-in devuelve ese
+  plan en vez de generar uno. Es a propósito.
+- **No es una barrera de coste completa.** `/api/ia/generar-plan` sigue
+  aceptando `trigger: "check_in"` de cualquiera, y el check-in no tiene bloqueo
+  de fecha: quien quiera gastar tokens ya podía. Si algún día importa, se cierra
+  ahí, no en este endpoint.
 
 ## El cron
 
@@ -398,6 +432,7 @@ el hook de resolución que lo arregla.
 | 8 — QA y puesta en producción | ✅ **la app está en producción** en `https://coach.agotech.cloud`, validada en navegador el 2026-08-13 |
 | 9 — Gastos editables y gasto puntual | ✅ código completo y verificado en navegador y contra la base. **Sin desplegar**: vive en la rama `sprint-9-gastos` |
 | 10 — Limpiar el onboarding desde el panel | ✅ código completo, verificado en navegador y contra la base (10/10 del camino feliz, 25/25 de IDOR). **Sin desplegar**, sobre la misma rama |
+| 11 — Permiso de recalcular el plan | ✅ código completo, migración aplicada en la base de producción el 2026-09-21, verificado en navegador (activar, recalcular, quitar → 403) y contra la base (el recálculo no escribe `CheckIn`; el evento lleva `recalculo: true`). IDOR 29/29. **Sin desplegar**, sobre la misma rama |
 
 ### El despliegue — hecho el 2026-08-13
 
@@ -454,10 +489,11 @@ del agente es dejarle los comandos y leer los logs que pegue.
 ### La prueba de IDOR (RNF-005)
 
 `scripts/idor-sembrar.mts` monta dos cuentas completas y `scripts/idor-probar.mts`
-ataca con la sesión de una los recursos de la otra. **25/25 sin hallazgos**
+ataca con la sesión de una los recursos de la otra. **29/29 sin hallazgos**
 —eran 15 hasta que el Sprint 9 añadió los tres endpoints de gastos y sus dos
-controles positivos, y 22 hasta que el Sprint 10 añadió el de limpiar el
-onboarding—.
+controles positivos, 22 hasta que el Sprint 10 añadió el de limpiar el
+onboarding y 25 hasta que el Sprint 11 añadió el de permisos y la barrera de
+recalcular—.
 
 ```bash
 RESEND_API_KEY= OPENAI_API_KEY= npm run dev     # deja libre el 3000, o usa BASE_URL

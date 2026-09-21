@@ -82,11 +82,20 @@ Aplicación web responsive con autenticación, formularios de ingreso de datos, 
 | RF-065 | El administrador puede limpiar el onboarding de cualquier usuario: se borran su intención, sus deudas, sus ingresos y sus gastos fijos, y el usuario vuelve al flujo de onboarding en su siguiente acceso | Must |
 | RF-066 | Limpiar el onboarding exige una confirmación explícita que nombra a la persona y enumera qué se borra y qué se conserva | Must |
 | RF-067 | Limpiar el onboarding conserva la cuenta, la contraseña y el historial —check-ins, planes, eventos, ingresos extra y gastos grandes—, y no aplica a cuentas de administrador | Must |
+| RF-068 | Un usuario con el permiso activado puede pedir, desde el dashboard y en cualquier momento, que el Motor IA recalcule su plan con sus datos actuales, sin hacer un check-in nuevo | Should |
+| RF-069 | Recalcular el plan no registra un check-in, no modifica saldos ni metas y no altera la fecha del próximo check-in; sin el permiso, la API lo rechaza con 403 aunque el botón no se muestre | Must |
+| RF-070 | El panel de administración permite activar o desactivar, por usuario, el permiso de recalcular el plan. Está desactivado por defecto y no aplica a cuentas de administrador | Should |
 
 **Nota sobre la numeración.** RF-064 a RF-067 continúan desde
 `docs/ESPECIFICACION_GASTOS.md`, que llegó hasta RF-063. Van en este módulo
 porque son del panel de administración, no del onboarding: quien los ejecuta es
 el admin.
+
+**Nota sobre RF-068 a RF-070 — recalcular no es repetir el check-in.** El caso
+es el de quien hace su check-in, se da cuenta después de que no anotó una deuda
+nueva, la añade en *Deudas* y quiere saber si eso cambia a qué pagar primero.
+Repetir el check-in no sirve: volvería a restar los abonos que ya restó el
+primero. Lo que se repite es solo la llamada al Motor IA, con los datos de hoy.
 
 **Nota sobre RF-006.** El panel muestra desde el Sprint 10 una sexta columna con
 el estado del onboarding (RF-064). Sigue sin mostrar un solo dato financiero
@@ -203,6 +212,14 @@ proyección de tiempo sigue calculándose sobre la capacidad estructural.
 gemelo del ingreso extraordinario y la simetría invita a convertirlo en un
 cuarto, pero no lo es (RF-059). El plan se recalibra en el siguiente check-in y
 mientras tanto el dashboard avisa (RF-061).
+
+**Nota sobre RF-034 y RF-068 — la excepción del recálculo.** RF-068 es la única
+forma de activar el motor fuera de los tres momentos, y existe solo para las
+personas a las que el admin se lo concede. No añade un cuarto tipo de
+disparador: el plan se guarda con trigger `check_in`, porque es el plan del
+check-in rehecho con los datos corregidos, y el evento `plan_generado` lleva
+`recalculo: true` para distinguirlo. El prompt le dice al modelo que no hubo
+abonos nuevos, para que no los reconozca.
 
 ---
 

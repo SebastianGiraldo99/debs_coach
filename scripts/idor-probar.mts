@@ -146,6 +146,27 @@ comprobar(
   `status ${r.status}`,
 )
 
+// Si esta pasara, A se daría a sí misma —o a cualquiera— llamadas al motor
+// sin límite. El cuerpo es válido para que llegue a la capa de autorización.
+r = await pedir("PUT", `/api/admin/usuarios/${B.usuarioId}/permisos`, cookieA, {
+  recalcularPlan: true,
+})
+comprobar(
+  "PUT /api/admin/usuarios/[id]/permisos sin ser admin → 404, no 403",
+  r.status === 404,
+  `status ${r.status}`,
+)
+
+// ─── Recalcular el plan sin el permiso ─────────────────────────────────────
+// No es IDOR sino la barrera de RF-068: el botón no se pinta, pero la API se
+// puede llamar igual. La siembra deja el permiso apagado.
+r = await pedir("POST", "/api/ia/recalcular-plan", cookieA)
+comprobar(
+  "POST /api/ia/recalcular-plan sin el permiso → 403",
+  r.status === 403,
+  `status ${r.status}`,
+)
+
 // ─── Check-in: ids ajenos en el CUERPO ─────────────────────────────────────
 // Aquí un id ajeno NO da 404: se ignora a propósito para no tumbar el
 // check-in entero. La comprobación es que los datos de B no se movieron.
@@ -189,6 +210,16 @@ comprobar(
   `status ${r.status}`,
 )
 
+// Control positivo del PUT de permisos, por la misma razón que el anterior.
+r = await pedir("PUT", `/api/admin/usuarios/${B.usuarioId}/permisos`, "", {
+  recalcularPlan: true,
+})
+comprobar(
+  "PUT /api/admin/usuarios/[id]/permisos sin cookie",
+  r.status === 401,
+  `status ${r.status}`,
+)
+
 // ─── Los datos de B, releídos de la base ───────────────────────────────────
 console.log("\n── Los datos de B después de todos los ataques ──")
 
@@ -205,6 +236,12 @@ comprobar(
   "B sigue con su onboarding completado",
   despues.usuario?.onboardingCompletadoEn != null,
   `onboardingCompletadoEn=${despues.usuario?.onboardingCompletadoEn}`,
+)
+
+comprobar(
+  "B sigue sin el permiso de recalcular",
+  despues.usuario?.puedeRecalcularPlan === false,
+  `puedeRecalcularPlan=${despues.usuario?.puedeRecalcularPlan}`,
 )
 
 comprobar(

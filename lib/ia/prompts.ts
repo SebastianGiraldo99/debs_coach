@@ -28,6 +28,14 @@ const TONO = `Cómo escribes:
 - Sin jerga sin explicar. Si mencionas una tasa, di qué significa en dinero: "32% E.A. — cada mes que mantienes ese saldo te cuesta $218.000".
 - Nada de felicitaciones vacías, insignias, rachas ni puntajes.`
 
+/**
+ * El momento del recálculo a mano (RF-068). Va aparte de los tres del trigger
+ * porque no es un disparador más: es el mismo plan del check-in, rehecho con
+ * los datos corregidos. Lo que importa decirle al modelo es qué NO pasó.
+ */
+const MOMENTO_RECALCULO =
+  "Corrigió o completó sus datos después de su último check-in (deudas, ingresos o gastos) y pidió recalcular el plan con las cifras de hoy. No hubo pagos nuevos en este momento: no reconozcas abonos. Revisa si con estos datos cambia a qué deuda conviene pagar primero y dilo con claridad, cambie o no."
+
 export function construirPrompt(ctx: ContextoFinanciero) {
   const simbolo = simboloMoneda(ctx.moneda)
   const dinero = (valor: number) => formatearMoneda(valor, ctx.moneda)
@@ -136,7 +144,7 @@ ${gastosGrandes}
 ÚLTIMOS MOVIMIENTOS:
 ${historial}
 
-MOMENTO: ${contextoTrigger[ctx.trigger]}
+MOMENTO: ${ctx.recalculo ? MOMENTO_RECALCULO : contextoTrigger[ctx.trigger]}
 ${ctx.ingresoExtra ? `INGRESO EXTRAORDINARIO: ${dinero(ctx.ingresoExtra.monto)} — "${ctx.ingresoExtra.descripcion}"` : ""}
 
 Devuelve exactamente este JSON:

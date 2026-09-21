@@ -2,6 +2,7 @@ import { prisma } from "@/lib/db/prisma"
 import {
   construirContexto,
   ContextoIncompletoError,
+  type OpcionesContexto,
   type Trigger,
 } from "@/lib/ia/contexto"
 import { generarPlan } from "@/lib/ia/motor"
@@ -36,6 +37,7 @@ export async function generarYGuardarPlan(
   usuarioId: string,
   trigger: Trigger,
   ingresoExtraId?: string,
+  opciones: OpcionesContexto = {},
 ): Promise<ResultadoGeneracion> {
   const reciente = await prisma.planIa.findFirst({
     where: {
@@ -56,7 +58,7 @@ export async function generarYGuardarPlan(
 
   let contexto
   try {
-    contexto = await construirContexto(usuarioId, trigger, ingresoExtraId)
+    contexto = await construirContexto(usuarioId, trigger, ingresoExtraId, opciones)
   } catch (error) {
     if (error instanceof ContextoIncompletoError) {
       return { ok: false, mensaje: error.message }
@@ -93,6 +95,9 @@ export async function generarYGuardarPlan(
           trigger,
           origen: plan.origen,
           motivo: resultado.motivo ?? null,
+          // Distingue el plan del check-in del que se pidió a mano después
+          // (RF-068). Los dos llevan trigger `check_in`.
+          ...(opciones.recalculo && { recalculo: true }),
         },
       },
     })

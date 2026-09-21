@@ -46,6 +46,14 @@ export type ContextoFinanciero = {
   deudas: DeudaContexto[]
   historial: { tipo: string; progresoPct: number | null; fecha: Date }[]
   trigger: Trigger
+  /**
+   * El plan lo pidió la persona a mano, con el permiso de RF-068, y no un
+   * check-in recién hecho. El trigger sigue siendo `check_in` —RF-034 fija
+   * tres y un cuarto obligaría a migrar el enum—, pero el modelo tiene que
+   * saberlo: si lee "acaba de completar su check-in" felicita por unos abonos
+   * que en este momento no ocurrieron.
+   */
+  recalculo?: true
   ingresoExtra?: { monto: number; descripcion: string }
   /**
    * Gastos grandes y puntuales recientes (RF-060).
@@ -76,6 +84,8 @@ function aNumero(valor: { toString(): string } | null | undefined): number | nul
 
 export class ContextoIncompletoError extends Error {}
 
+export type OpcionesContexto = { recalculo?: boolean }
+
 /**
  * Arma el contexto de un usuario. Lanza `ContextoIncompletoError` si no hay
  * intención: sin ella no hay plan que generar, porque es la guía de todo el
@@ -85,6 +95,7 @@ export async function construirContexto(
   usuarioId: string,
   trigger: Trigger,
   ingresoExtraId?: string,
+  opciones: OpcionesContexto = {},
 ): Promise<ContextoFinanciero> {
   const [usuario, objetivos, deudas, eventos, capacidad, gastosGrandes] = await Promise.all([
     prisma.usuario.findUnique({
@@ -171,6 +182,7 @@ export async function construirContexto(
       fecha: e.createdAt,
     })),
     trigger,
+    ...(opciones.recalculo && { recalculo: true as const }),
     ingresoExtra,
   }
 }
