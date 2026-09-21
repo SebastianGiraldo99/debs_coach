@@ -1,3 +1,5 @@
+import type { ReactNode } from "react"
+
 import { formatearFecha } from "@/lib/formato"
 import type { PasoPlan } from "@/lib/ia/schema"
 
@@ -13,9 +15,17 @@ type Props = {
   generadoEn: Date | null
   /** Las cifras sobre las que se dio el consejo ya no son las de hoy. */
   desactualizado: boolean
+  /** El botón de recalcular, solo para quien tiene el permiso (RF-068). */
+  accion?: ReactNode
 }
 
-export function PlanAccion({ pasos, otrasIntenciones, generadoEn, desactualizado }: Props) {
+export function PlanAccion({
+  pasos,
+  otrasIntenciones,
+  generadoEn,
+  desactualizado,
+  accion,
+}: Props) {
   return (
     <section aria-labelledby="plan-titulo" className="flex flex-col gap-4">
       <div className="flex flex-col gap-1">
@@ -31,6 +41,7 @@ export function PlanAccion({ pasos, otrasIntenciones, generadoEn, desactualizado
             {desactualizado && ", con las cifras que tenías entonces"}
           </p>
         )}
+        {accion && <div className="mt-2">{accion}</div>}
       </div>
 
       {pasos.length > 0 && (

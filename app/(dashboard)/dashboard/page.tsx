@@ -7,6 +7,7 @@ import { CifrasClave } from "@/components/dashboard/cifras-clave"
 import { PlanAccion } from "@/components/dashboard/plan-accion"
 import { AvisoPlan } from "@/components/dashboard/aviso-plan"
 import { BotonGenerarPlan } from "@/components/dashboard/boton-generar-plan"
+import { BotonRecalcularPlan } from "@/components/dashboard/boton-recalcular-plan"
 import { ProyeccionPlegable } from "@/components/dashboard/proyeccion-plegable"
 import { HistorialCheckins } from "@/components/dashboard/historial-checkins"
 import {
@@ -132,6 +133,7 @@ export default async function DashboardPage(props: PageProps<"/dashboard">) {
           otrasIntenciones={datos.otrasIntenciones}
           generadoEn={datos.planGeneradoEn}
           desactualizado={datos.planDesactualizado}
+          accion={usuario.puedeRecalcularPlan ? <BotonRecalcularPlan /> : undefined}
         />
       )}
 
