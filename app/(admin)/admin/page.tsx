@@ -15,6 +15,9 @@ import { prisma } from "@/lib/db/prisma"
  * `onboardingCompletadoEn` sí entra: es progreso, no dinero —una fecha, no una
  * cifra— y es lo que le dice al admin si tiene sentido limpiar el onboarding
  * de alguien (RF-064 y RF-065).
+ *
+ * `puedeRecalcularPlan` tampoco es dinero: es un permiso que decide el propio
+ * admin (RF-070).
  */
 export default async function AdminPage() {
   await requerirAdmin()
@@ -29,6 +32,7 @@ export default async function AdminPage() {
         rol: true,
         ultimoAcceso: true,
         onboardingCompletadoEn: true,
+        puedeRecalcularPlan: true,
       },
       // Los pendientes primero: son los que piden una decisión.
       orderBy: [{ estado: "asc" }, { createdAt: "asc" }],

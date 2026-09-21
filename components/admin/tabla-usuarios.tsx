@@ -6,6 +6,7 @@ import { useState } from "react"
 import { DialogoLimpiarOnboarding } from "@/components/admin/dialogo-limpiar-onboarding"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { enviar } from "@/lib/api-cliente"
 import { formatearFecha } from "@/lib/formato"
 
 export type EstadoUsuario = "pendiente" | "activo" | "bloqueado"
@@ -19,6 +20,8 @@ export type FilaUsuario = {
   ultimoAcceso: string | null
   /** `null` mientras no lo haya terminado. Es progreso, no dato financiero. */
   onboardingCompletadoEn: string | null
+  /** Si puede recalcular su plan cuando quiera (RF-068). */
+  puedeRecalcularPlan: boolean
 }
 
 const etiquetaEstado: Record<EstadoUsuario, string> = {
@@ -49,6 +52,15 @@ export function TablaUsuarios({ usuarios }: { usuarios: FilaUsuario[] }) {
   const [ocupado, setOcupado] = useState<string | null>(null)
   const [aviso, setAviso] = useState<string | null>(null)
   const [exito, setExito] = useState<string | null>(null)
+  /**
+   * El valor que el admin acaba de pedir para la casilla. Es controlada y su
+   * verdad viene del servidor, así que sin esto se ve desmarcada durante el
+   * segundo que tarda el refresh, como si el clic no hubiera servido. Solo se
+   * descarta si falla: tras un éxito coincide con lo que traerá el servidor.
+   */
+  const [permisoPedido, setPermisoPedido] = useState<{ id: string; valor: boolean } | null>(
+    null,
+  )
 
   async function ejecutar(id: string, accion: string) {
     setAviso(null)
@@ -78,6 +90,34 @@ export function TablaUsuarios({ usuarios }: { usuarios: FilaUsuario[] }) {
     }
   }
 
+  /**
+   * Enciende o apaga el permiso de recalcular (RF-070). Manda el valor que
+   * debe quedar, no "invertir": si la tabla estaba vieja, el resultado es lo
+   * que el admin vio al hacer clic.
+   */
+  async function cambiarPermiso(u: FilaUsuario, activar: boolean) {
+    setAviso(null)
+    setExito(null)
+    setOcupado(u.id)
+    setPermisoPedido({ id: u.id, valor: activar })
+    const respuesta = await enviar(`/api/admin/usuarios/${u.id}/permisos`, "PUT", {
+      recalcularPlan: activar,
+    })
+    setOcupado(null)
+
+    if (!respuesta.ok) {
+      setPermisoPedido(null)
+      setAviso(respuesta.mensaje)
+      return
+    }
+    setExito(
+      activar
+        ? `${u.nombre} ya puede recalcular su plan cuando quiera.`
+        : `${u.nombre} ya no puede recalcular su plan a voluntad.`,
+    )
+    router.refresh()
+  }
+
   return (
     <div className="flex flex-col gap-3">
       {aviso && (
@@ -93,7 +133,7 @@ export function TablaUsuarios({ usuarios }: { usuarios: FilaUsuario[] }) {
       )}
 
       <div className="overflow-x-auto rounded-card border border-line">
-        <table className="w-full min-w-[52rem] text-left text-menor">
+        <table className="w-full min-w-[60rem] text-left text-menor">
           <thead className="border-b border-line bg-surface-alt text-ink-mute">
             <tr>
               <th scope="col" className="px-4 py-3 font-medium">Nombre</th>
@@ -101,6 +141,7 @@ export function TablaUsuarios({ usuarios }: { usuarios: FilaUsuario[] }) {
               <th scope="col" className="px-4 py-3 font-medium">Estado</th>
               <th scope="col" className="px-4 py-3 font-medium">Último acceso</th>
               <th scope="col" className="px-4 py-3 font-medium">Onboarding</th>
+              <th scope="col" className="px-4 py-3 font-medium">Recalcular plan</th>
               <th scope="col" className="px-4 py-3 font-medium">
                 <span className="sr-only">Acciones</span>
               </th>
@@ -109,6 +150,8 @@ export function TablaUsuarios({ usuarios }: { usuarios: FilaUsuario[] }) {
           <tbody className="divide-y divide-line bg-surface">
             {usuarios.map((u) => {
               const accion = u.rol === "admin" ? null : accionPorEstado[u.estado]
+              const permitido =
+                permisoPedido?.id === u.id ? permisoPedido.valor : u.puedeRecalcularPlan
               return (
                 <tr key={u.id}>
                   <td className="px-4 py-3 font-medium text-ink">
@@ -128,6 +171,28 @@ export function TablaUsuarios({ usuarios }: { usuarios: FilaUsuario[] }) {
                     {u.onboardingCompletadoEn
                       ? formatearFecha(u.onboardingCompletadoEn)
                       : "Sin terminar"}
+                  </td>
+                  <td className="px-4 py-3">
+                    {/* Un checkbox nativo y no un interruptor a medida: es
+                        accesible de fábrica y la etiqueta oculta nombra a la
+                        persona, que es lo que distingue una fila de otra. */}
+                    {u.rol !== "admin" && (
+                      <label className="inline-flex items-center gap-2 text-ink-soft">
+                        <input
+                          type="checkbox"
+                          className="size-4 accent-primary"
+                          checked={permitido}
+                          disabled={ocupado === u.id}
+                          onChange={(e) => cambiarPermiso(u, e.target.checked)}
+                        />
+                        <span aria-hidden="true">
+                          {permitido ? "Permitido" : "No"}
+                        </span>
+                        <span className="sr-only">
+                          {`Permitir que ${u.nombre} recalcule su plan cuando quiera`}
+                        </span>
+                      </label>
+                    )}
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex justify-end gap-2">
