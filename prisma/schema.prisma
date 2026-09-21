@@ -140,6 +140,14 @@ model Usuario {
   /// `eventos`: esa tabla es el historial financiero que la persona ve.
   ultimoRecordatorioEn DateTime? @map("ultimo_recordatorio_en")
 
+  /// Si puede pedir que el Motor IA recalcule su plan cuando quiera (RF-068).
+  ///
+  /// Lo decide el admin, persona por persona. Es para quien hizo su check-in,
+  /// corrigió después sus deudas o ingresos y quiere ver si el consejo cambia
+  /// sin esperar al siguiente. Apagado por defecto: cada recálculo es una
+  /// llamada al proveedor, y RF-034 fija los disparadores normales.
+  puedeRecalcularPlan Boolean @default(false) @map("puede_recalcular_plan")
+
   objetivos      Objetivo[]
   deudas         Deuda[]
   ingresos       Ingreso[]

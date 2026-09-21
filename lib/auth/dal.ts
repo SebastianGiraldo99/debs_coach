@@ -27,6 +27,8 @@ export type UsuarioSesion = {
   monedaBase: "COP" | "USD"
   /** `null` mientras no haya terminado el onboarding. */
   onboardingCompletadoEn: Date | null
+  /** Permiso que da el admin para recalcular el plan a voluntad (RF-068). */
+  puedeRecalcularPlan: boolean
 }
 
 /**
@@ -47,6 +49,7 @@ export const usuarioActual = cache(async (): Promise<UsuarioSesion | null> => {
       estado: true,
       monedaBase: true,
       onboardingCompletadoEn: true,
+      puedeRecalcularPlan: true,
     },
   })
 
@@ -60,6 +63,7 @@ export const usuarioActual = cache(async (): Promise<UsuarioSesion | null> => {
     rol: usuario.rol,
     monedaBase: usuario.monedaBase,
     onboardingCompletadoEn: usuario.onboardingCompletadoEn,
+    puedeRecalcularPlan: usuario.puedeRecalcularPlan,
   }
 })
 
