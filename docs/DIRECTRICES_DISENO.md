@@ -292,7 +292,7 @@ Reglas: los inputs siempre a 16px (`text-cuerpo`) — por debajo, iOS hace zoom 
 
 Escala de 4px: usa `1, 2, 3, 4, 6, 8, 12, 16` de Tailwind (4 a 64px). Nada intermedio.
 
-- Ancho de contenido: `max-w-3xl` (768px) en dashboard y listas; `max-w-xl` (576px) en formularios. **Excepción: el panel de administración va a `max-w-5xl`** (1024px) — su tabla tiene seis columnas y dos acciones por fila, y a 768px la última quedaba cortada tras un scroll horizontal. Ahí no hay texto corrido, que es lo que justifica el límite estrecho.
+- Ancho de contenido: `max-w-3xl` (768px) en dashboard y listas; `max-w-xl` (576px) en formularios. **Excepción: el panel de administración va a `max-w-6xl`** (1152px) — su tabla tiene siete columnas y dos acciones por fila. A 768px la última quedaba cortada tras un scroll horizontal, y a 1024px volvió a pasar al añadir la columna del permiso de recalcular. Ahí no hay texto corrido, que es lo que justifica el límite estrecho.
 - Padding de página: `px-4 py-6` en móvil, `px-8 py-10` en desktop.
 - Padding de tarjeta: `p-5`; la tarjeta de "Tu siguiente paso" lleva `p-6`.
 - Separación entre secciones del dashboard: `space-y-8`.
