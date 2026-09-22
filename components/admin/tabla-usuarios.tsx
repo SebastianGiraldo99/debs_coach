@@ -6,6 +6,7 @@ import { useState } from "react"
 import { DialogoLimpiarOnboarding } from "@/components/admin/dialogo-limpiar-onboarding"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { Interruptor } from "@/components/ui/interruptor"
 import { enviar } from "@/lib/api-cliente"
 import { formatearFecha } from "@/lib/formato"
 
@@ -53,8 +54,8 @@ export function TablaUsuarios({ usuarios }: { usuarios: FilaUsuario[] }) {
   const [aviso, setAviso] = useState<string | null>(null)
   const [exito, setExito] = useState<string | null>(null)
   /**
-   * El valor que el admin acaba de pedir para la casilla. Es controlada y su
-   * verdad viene del servidor, así que sin esto se ve desmarcada durante el
+   * El valor que el admin acaba de pedir para el interruptor. Es controlado y su
+   * verdad viene del servidor, así que sin esto se ve apagado durante el
    * segundo que tarda el refresh, como si el clic no hubiera servido. Solo se
    * descarta si falla: tras un éxito coincide con lo que traerá el servidor.
    */
@@ -173,25 +174,19 @@ export function TablaUsuarios({ usuarios }: { usuarios: FilaUsuario[] }) {
                       : "Sin terminar"}
                   </td>
                   <td className="px-4 py-3">
-                    {/* Un checkbox nativo y no un interruptor a medida: es
-                        accesible de fábrica y la etiqueta oculta nombra a la
-                        persona, que es lo que distingue una fila de otra. */}
+                    {/* La etiqueta accesible nombra a la persona: es lo que
+                        distingue un interruptor de otro al recorrer la tabla
+                        con lector de pantalla. */}
                     {u.rol !== "admin" && (
-                      <label className="inline-flex items-center gap-2 text-ink-soft">
-                        <input
-                          type="checkbox"
-                          className="size-4 accent-primary"
-                          checked={permitido}
+                      <div className="flex items-center gap-2 text-ink-soft">
+                        <Interruptor
+                          activado={permitido}
                           disabled={ocupado === u.id}
-                          onChange={(e) => cambiarPermiso(u, e.target.checked)}
+                          onCambiar={(activar) => cambiarPermiso(u, activar)}
+                          etiqueta={`Permitir que ${u.nombre} recalcule su plan cuando quiera`}
                         />
-                        <span aria-hidden="true">
-                          {permitido ? "Permitido" : "No"}
-                        </span>
-                        <span className="sr-only">
-                          {`Permitir que ${u.nombre} recalcule su plan cuando quiera`}
-                        </span>
-                      </label>
+                        <span aria-hidden="true">{permitido ? "Activado" : "Apagado"}</span>
+                      </div>
                     )}
                   </td>
                   <td className="px-4 py-3">
