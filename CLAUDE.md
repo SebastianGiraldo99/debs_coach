@@ -324,7 +324,9 @@ repetirlos.
 Un botón en "Tu plan" del dashboard, *"Recalcular con mis datos de hoy"*, que
 vuelve a pasar por el Motor IA los datos actuales (RF-068 a RF-070). Solo lo ve
 quien tiene `Usuario.puedeRecalcularPlan`, que el admin enciende persona por
-persona con la columna "Recalcular plan" del panel.
+persona con la columna "Recalcular plan" del panel. Es un interruptor
+(`components/ui/interruptor.tsx`): un `<button role="switch">` nativo, sin
+Radix, con 44 px de alto táctil aunque la pista se vea de 24.
 
 - **No es repetir el check-in**, aunque se pidiera con esas palabras. El caso
   real: alguien hace su check-in, se da cuenta de que no anotó una deuda nueva,
