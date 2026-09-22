@@ -10,6 +10,7 @@ import { BotonGenerarPlan } from "@/components/dashboard/boton-generar-plan"
 import { BotonRecalcularPlan } from "@/components/dashboard/boton-recalcular-plan"
 import { ProyeccionPlegable } from "@/components/dashboard/proyeccion-plegable"
 import { HistorialCheckins } from "@/components/dashboard/historial-checkins"
+import { ExportarDatos } from "@/components/dashboard/exportar-datos"
 import {
   AccionIngresoExtra,
   BarraIngresoExtraMovil,
@@ -143,6 +144,7 @@ export default async function DashboardPage(props: PageProps<"/dashboard">) {
         moneda={datos.moneda}
       />
       <HistorialCheckins checkins={datos.checkins} moneda={datos.moneda} />
+      <ExportarDatos />
       <BarraIngresoExtraMovil moneda={datos.moneda} />
     </div>
   )

@@ -1,4 +1,5 @@
 import "dotenv/config"
+import ExcelJS from "exceljs"
 
 import { prisma } from "@/lib/db/prisma"
 import { construirContexto } from "@/lib/ia/contexto"
@@ -195,6 +196,29 @@ r = await pedir("POST", "/api/ia/generar-plan", cookieA, {
 })
 console.log(`  (generar-plan con ingresoExtraId de B respondió ${r.status})`)
 
+// ─── Exportar a Excel ──────────────────────────────────────────────────────
+// No lleva ids: el riesgo es que la consulta olvide filtrar por dueño y el
+// archivo de A traiga filas de B. Se lee el libro entero, celda por celda.
+// El control positivo va en la misma comprobación: que traiga la deuda de A
+// demuestra que el archivo tiene datos y no está vacío por un error.
+{
+  const res = await fetch(`${BASE}/api/exportar`, { headers: { cookie: cookieA } })
+  const libro = new ExcelJS.Workbook()
+  let texto = ""
+  if (res.ok) {
+    // Los tipos de exceljs son anteriores a los Buffer genéricos de Node 24.
+    await libro.xlsx.load(Buffer.from(await res.arrayBuffer()) as unknown as ExcelJS.Buffer)
+    libro.eachSheet((hoja) =>
+      hoja.eachRow((fila) => fila.eachCell((celda) => (texto += ` ${celda.text}`))),
+    )
+  }
+  comprobar(
+    "GET /api/exportar trae los datos de A y ninguno de B",
+    res.status === 200 && texto.includes("Ana Atacante") && !texto.includes("Beto Victima"),
+    `status ${res.status}, de A: ${texto.includes("Ana Atacante")}, de B: ${texto.includes("Beto Victima")}`,
+  )
+}
+
 // ─── Sin sesión ────────────────────────────────────────────────────────────
 r = await pedir("PATCH", `/api/deudas/${B.deudaId}`, "", { nombre: "Sin sesion", saldo: 1 })
 comprobar("PATCH /api/deudas/[id] sin cookie", r.status === 401, `status ${r.status}`)
@@ -219,6 +243,9 @@ comprobar(
   r.status === 401,
   `status ${r.status}`,
 )
+
+r = await pedir("GET", "/api/exportar", "")
+comprobar("GET /api/exportar sin cookie", r.status === 401, `status ${r.status}`)
 
 // ─── Los datos de B, releídos de la base ───────────────────────────────────
 console.log("\n── Los datos de B después de todos los ataques ──")
