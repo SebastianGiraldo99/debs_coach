@@ -354,6 +354,36 @@ Radix, con 44 px de alto táctil aunque la pista se vea de 24.
   de fecha: quien quiera gastar tokens ya podía. Si algún día importa, se cierra
   ahí, no en este endpoint.
 
+## Exportar a Excel
+
+`GET /api/exportar` descarga un `.xlsx` con todos los datos de quien lo pide
+(RF-071 a RF-074). El botón es la sección "Tus datos", al final del dashboard;
+**no va en la barra de navegación**, que ya tiene seis enlaces y su comentario
+dice que es el techo. El propósito es que la persona se lo dé a otra IA de pago
+y converse a fondo: la exportación no llama al motor y RF-035 sigue en pie.
+
+- **`lib/exportar/libro.ts` arma el libro y reusa `cargarDashboard()`** para el
+  Resumen y el Plan actual: el Excel dice las mismas cifras que la pantalla.
+- **Formato pensado para que lo lea un modelo:** una tabla por hoja con títulos
+  en la fila 1 y nada encima, montos como números (sin "$" en la celda, el
+  formato los agrupa), sin uuids, y una hoja "Léeme" primero que explica la
+  capacidad estructural frente al disponible del mes. Sin ella, la IA las
+  confundiría.
+- **Los `createdAt` se llevan al día de Bogotá** con `diaBogota()`. Excel no
+  tiene zonas y ExcelJS calcula sobre UTC: un registro de las 8 p.m. saldría
+  con la fecha del día siguiente. Las columnas `@db.Date` van tal cual.
+- **"Pagos por check-in" muestra lo reportado, no lo aplicado.** El abono se
+  recorta al saldo y `pagosRealizados` guarda el reporte; el total aplicado
+  está en la hoja Check-ins. El Léeme lo explica.
+- **El texto nunca es fórmula.** ExcelJS escribe las cadenas como cadenas; una
+  descripción `=HYPERLINK(...)` queda como texto. Verificado: cero celdas de
+  fórmula en el libro.
+- **`exceljs` no aparece en `.next/standalone/node_modules`**, y no es un fallo:
+  Next lo empaqueta dentro del chunk de la ruta. Verificado arrancando el
+  `server.js` de standalone y descargando el archivo.
+- Los tipos de `exceljs` son anteriores a los `Buffer` genéricos de Node 24:
+  `xlsx.load()` necesita un cast (ver `scripts/idor-probar.mts`).
+
 ## El cron
 
 `instrumentation.ts` → `lib/cron/scheduler.ts`. **`register()` corre en todos
@@ -434,7 +464,8 @@ el hook de resolución que lo arregla.
 | 8 — QA y puesta en producción | ✅ **la app está en producción** en `https://coach.agotech.cloud`, validada en navegador el 2026-08-13 |
 | 9 — Gastos editables y gasto puntual | ✅ código completo y verificado en navegador y contra la base. **Sin desplegar**: vive en la rama `sprint-9-gastos` |
 | 10 — Limpiar el onboarding desde el panel | ✅ código completo, verificado en navegador y contra la base (10/10 del camino feliz, 25/25 de IDOR). **Sin desplegar**, sobre la misma rama |
-| 11 — Permiso de recalcular el plan | ✅ código completo, migración aplicada en la base de producción el 2026-09-21, verificado en navegador (activar, recalcular, quitar → 403) y contra la base (el recálculo no escribe `CheckIn`; el evento lleva `recalculo: true`). IDOR 29/29. **Sin desplegar**, sobre la misma rama |
+| 11 — Permiso de recalcular el plan | ✅ código completo, migración aplicada en la base de producción el 2026-09-21, verificado en navegador (activar, recalcular, quitar → 403) y contra la base (el recálculo no escribe `CheckIn`; el evento lleva `recalculo: true`). IDOR 29/29. fusionado en `main` |
+| 12 — Exportar a Excel | ✅ código completo, verificado contra la base, en navegador (descarga a 375 px, enlace presente sin JS) y en el servidor standalone. IDOR 31/31. **Sin desplegar**, en la rama `sprint-12-exportar-excel` |
 
 ### El despliegue — hecho el 2026-08-13
 
@@ -491,11 +522,13 @@ del agente es dejarle los comandos y leer los logs que pegue.
 ### La prueba de IDOR (RNF-005)
 
 `scripts/idor-sembrar.mts` monta dos cuentas completas y `scripts/idor-probar.mts`
-ataca con la sesión de una los recursos de la otra. **29/29 sin hallazgos**
+ataca con la sesión de una los recursos de la otra. **31/31 sin hallazgos**
 —eran 15 hasta que el Sprint 9 añadió los tres endpoints de gastos y sus dos
 controles positivos, 22 hasta que el Sprint 10 añadió el de limpiar el
-onboarding y 25 hasta que el Sprint 11 añadió el de permisos y la barrera de
-recalcular—.
+onboarding, 25 hasta que el Sprint 11 añadió el de permisos y la barrera de
+recalcular, y 29 hasta que el Sprint 12 añadió la exportación—. La de exportar
+lee el libro entero celda por celda: debe traer "Ana Atacante" y no "Beto
+Victima"; lo primero es su control positivo.
 
 ```bash
 RESEND_API_KEY= OPENAI_API_KEY= npm run dev     # deja libre el 3000, o usa BASE_URL

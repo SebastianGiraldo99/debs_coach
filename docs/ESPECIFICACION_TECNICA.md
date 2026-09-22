@@ -221,6 +221,23 @@ check-in rehecho con los datos corregidos, y el evento `plan_generado` lleva
 `recalculo: true` para distinguirlo. El prompt le dice al modelo que no hubo
 abonos nuevos, para que no los reconozca.
 
+### Módulo de Exportación (Sprint 12)
+
+| ID | Requerimiento | Prioridad |
+|---|---|---|
+| RF-071 | El usuario puede descargar desde el dashboard un archivo Excel (.xlsx) con todos sus datos | Should |
+| RF-072 | El archivo tiene una hoja por tema, con los títulos en la primera fila y una fila por registro: Léeme, Resumen, Objetivos, Deudas, Ingresos, Gastos fijos, Ingresos extra, Gastos grandes, Check-ins, Pagos por check-in y Plan actual | Should |
+| RF-073 | Los montos van como números en la moneda base, las fechas como fechas del día de Bogotá y sin identificadores internos. La hoja Léeme explica qué significa cada cifra | Should |
+| RF-074 | La exportación solo incluye datos de quien la pide (el `usuarioId` sale de la sesión), no aplica a cuentas de administrador, no se guarda en caché y el texto que escribió el usuario nunca se interpreta como fórmula | Must |
+
+**Nota sobre RF-035 — exportar no es un chat.** El propósito declarado es que
+quien paga otra IA pueda dársela el archivo y conversar sobre sus finanzas.
+Eso ocurre fuera de la app: aquí el Motor IA sigue sin interfaz de chat y la
+exportación no llama al modelo.
+
+**Nota sobre RNF-006.** El admin no puede exportar datos de nadie: la ruta no
+recibe parámetros y su propia cuenta no tiene onboarding, así que responde 409.
+
 ---
 
 ## 6. Historias de Usuario con Criterios de Aceptación
