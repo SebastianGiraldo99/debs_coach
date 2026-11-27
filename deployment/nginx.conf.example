@@ -61,6 +61,8 @@ server {
     add_header Referrer-Policy "strict-origin-when-cross-origin" always;
     # No hay cámara, micrófono ni geolocalización en toda la app.
     add_header Permissions-Policy "camera=(), microphone=(), geolocation=()" always;
+    # El mismo ID se envía a la app y al navegador, incluso en errores 504.
+    add_header X-Request-ID $request_id always;
 
     # El plan de la IA puede tardar hasta 45 s (el timeout del motor). Con el
     # 60 por defecto de Nginx iría justo; 90 deja margen para que el error que
@@ -79,6 +81,8 @@ server {
         proxy_http_version 1.1;
 
         proxy_set_header Host              $host;
+        proxy_set_header X-Request-ID      $request_id;
+        proxy_hide_header X-Request-ID;
         proxy_set_header X-Real-IP         $remote_addr;
         proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
