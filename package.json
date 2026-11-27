@@ -10,6 +10,7 @@
     "script": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --import ./scripts/registrar-alias.mjs"
   },
   "dependencies": {
+    "@neslinesli93/qpdf-wasm": "0.3.1",
     "@prisma/adapter-pg": "^7.9.1",
     "@prisma/client": "^7.8.0",
     "@radix-ui/react-dialog": "^1.1.15",

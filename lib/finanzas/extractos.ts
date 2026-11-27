@@ -3,6 +3,7 @@ import { z } from "zod"
 import { tiposDeuda } from "@/lib/finanzas/etiquetas"
 import { esquemaDeuda } from "@/lib/finanzas/esquemas"
 
+export const MAXIMA_CONTRASENA_EXTRACTO = 256
 export const MAXIMO_EXTRACTO_BYTES = 1024 * 1024
 
 export const esquemaExtracto = z.object({
