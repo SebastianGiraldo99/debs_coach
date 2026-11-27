@@ -1,6 +1,6 @@
 "use client"
 
-import type { ReactNode } from "react"
+import { isValidElement, type ReactNode } from "react"
 import { Plus, X } from "lucide-react"
 
 import { cn } from "@/lib/utils"
@@ -45,7 +45,7 @@ export function ListaRepetible({
 
       {filas.map((fila, indice) => (
         <div
-          key={indice}
+          key={isValidElement(fila) ? fila.key ?? indice : indice}
           className="flex items-start gap-3 rounded-card border border-line bg-surface p-4"
         >
           <div className="min-w-0 flex-1">{fila}</div>

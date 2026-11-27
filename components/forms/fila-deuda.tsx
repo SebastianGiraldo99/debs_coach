@@ -4,6 +4,7 @@ import { Campo } from "@/components/ui/campo"
 import { CampoMoneda } from "@/components/ui/campo-moneda"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { ImportarExtracto } from "@/components/deudas/importar-extracto"
 import { CalculadoraTasa } from "@/components/deudas/calculadora-tasa"
 import { etiquetasTipoDeuda, tiposDeuda, type TipoDeuda } from "@/lib/finanzas/etiquetas"
 import type { Moneda } from "@/lib/formato"
@@ -25,14 +26,26 @@ export function FilaDeuda({
   onChange,
   indice,
   moneda = "COP",
+  guardando = false,
 }: {
   valor: FilaDeudaValor
   onChange: (valor: FilaDeudaValor) => void
   indice: number
+  guardando?: boolean
   moneda?: Moneda
 }) {
   return (
     <div className="flex flex-col gap-4">
+      <ImportarExtracto
+        disabled={guardando}
+        onAplicar={(datos) => onChange({
+          nombre: datos.nombre ?? valor.nombre,
+          tipo: datos.tipo ?? valor.tipo,
+          saldo: datos.saldo ?? valor.saldo,
+          pagoMinimo: datos.pagoMinimo ?? valor.pagoMinimo,
+          tasaEA: datos.tasaEA ?? valor.tasaEA,
+        })}
+      />
       <Campo
         etiqueta="Nombre de la deuda"
         ayuda="Como la reconoces tú"

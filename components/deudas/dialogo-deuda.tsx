@@ -17,6 +17,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { ImportarExtracto } from "@/components/deudas/importar-extracto"
 import { CalculadoraTasa } from "@/components/deudas/calculadora-tasa"
 import { enviar } from "@/lib/api-cliente"
 import { etiquetasTipoDeuda, tiposDeuda, type TipoDeuda } from "@/lib/finanzas/etiquetas"
@@ -159,7 +160,7 @@ export function DialogoDeuda({ trigger, deuda, moneda }: Props) {
           </Button>
         )}
       </DialogTrigger>
-      <DialogContent>
+      <DialogContent className="max-h-[90dvh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{editando ? "Editar deuda" : "Agregar deuda"}</DialogTitle>
           <DialogDescription>
@@ -170,6 +171,16 @@ export function DialogoDeuda({ trigger, deuda, moneda }: Props) {
         </DialogHeader>
 
         <form onSubmit={guardar} className="flex flex-col gap-5">
+          <ImportarExtracto
+            disabled={ocupado}
+            onAplicar={(datos) => {
+              if (datos.nombre !== null) setNombre(datos.nombre)
+              if (datos.tipo !== null) setTipo(datos.tipo)
+              if (datos.saldo !== null) setSaldo(datos.saldo)
+              if (datos.pagoMinimo !== null) setPagoMinimo(datos.pagoMinimo)
+              if (datos.tasaEA !== null) setTasaEA(datos.tasaEA)
+            }}
+          />
           <Campo
             etiqueta="Nombre de la deuda"
             ayuda="Como la reconoces tú"
