@@ -11,6 +11,10 @@ const nextConfig: NextConfig = {
    * mano, y si se olvidan la app arranca sin CSS ni imágenes.
    */
   output: "standalone",
+  serverExternalPackages: ["@neslinesli93/qpdf-wasm"],
+  outputFileTracingIncludes: {
+    "/api/deudas/extracto": ["./node_modules/@neslinesli93/qpdf-wasm/dist/qpdf.wasm"],
+  },
 };
 
 export default nextConfig;

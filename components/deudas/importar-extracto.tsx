@@ -5,7 +5,7 @@ import { useRef, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Campo } from "@/components/ui/campo"
 import type { Respuesta } from "@/lib/api-cliente"
-import { MAXIMO_EXTRACTO_BYTES, type DatosExtracto } from "@/lib/finanzas/extractos"
+import { MAXIMA_CONTRASENA_EXTRACTO, MAXIMO_EXTRACTO_BYTES, type DatosExtracto } from "@/lib/finanzas/extractos"
 import { etiquetasTipoDeuda } from "@/lib/finanzas/etiquetas"
 
 export function ImportarExtracto({
@@ -16,6 +16,7 @@ export function ImportarExtracto({
   onAplicar: (datos: DatosExtracto) => void
 }) {
   const campo = useRef<HTMLInputElement>(null)
+  const campoContrasena = useRef<HTMLInputElement>(null)
   const [archivo, setArchivo] = useState<File | null>(null)
   const [leyendo, setLeyendo] = useState(false)
   const [datos, setDatos] = useState<DatosExtracto | null>(null)
@@ -37,17 +38,25 @@ export function ImportarExtracto({
       return
     }
 
+    const contrasena = campoContrasena.current?.value ?? ""
+    const formulario = new FormData()
+    formulario.set("archivo", archivo, "extracto.pdf")
+    formulario.set("contrasena", contrasena)
+
     setLeyendo(true)
     try {
       const respuesta = await fetch("/api/deudas/extracto", {
         method: "POST",
-        headers: { "Content-Type": "application/pdf" },
-        body: archivo,
+        body: formulario,
         signal: AbortSignal.timeout(60_000),
       })
       const resultado: Respuesta<{ datos: DatosExtracto }> = await respuesta.json()
-      if (resultado.ok) setDatos(resultado.datos)
-      else setError(resultado.mensaje)
+      if (resultado.ok) {
+        setDatos(resultado.datos)
+        if (campoContrasena.current) campoContrasena.current.value = ""
+      } else {
+        setError(resultado.mensaje)
+      }
     } catch {
       setError("No pudimos leer el extracto. Puedes volver a intentarlo o ingresar los datos a mano.")
     } finally {
@@ -72,12 +81,25 @@ export function ImportarExtracto({
         accept=".pdf,application/pdf"
         disabled={disabled || leyendo}
         onChange={(evento) => {
+          if (campoContrasena.current) campoContrasena.current.value = ""
           setAplicado(false)
           setArchivo(evento.target.files?.[0] ?? null)
           setDatos(null)
           setError(null)
         }}
       />
+      {archivo && (
+        <Campo
+          ref={campoContrasena}
+          etiqueta="Contraseña del PDF"
+          opcional
+          ayuda="Escríbela si el PDF está protegido. Solo se usa para abrir el archivo."
+          type="password"
+          autoComplete="off"
+          maxLength={MAXIMA_CONTRASENA_EXTRACTO}
+          disabled={disabled || leyendo}
+        />
+      )}
       <Button type="button" variant="secondary" onClick={leer} disabled={disabled || leyendo || !archivo}>
         {leyendo ? "Leyendo extracto…" : "Leer extracto"}
       </Button>
