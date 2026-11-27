@@ -3,7 +3,17 @@ import { zodTextFormat } from "openai/helpers/zod"
 
 import { exigirUsuario } from "@/lib/auth/api"
 import { desbloquearExtracto } from "@/lib/finanzas/desbloquear-extracto"
-import { esquemaExtracto, MAXIMA_CONTRASENA_EXTRACTO, MAXIMO_EXTRACTO_BYTES } from "@/lib/finanzas/extractos"
+import {
+  esquemaExtracto,
+  MAXIMA_CONTRASENA_EXTRACTO,
+  MAXIMO_EXTRACTO_BYTES,
+  TIPO_FLUJO_EXTRACTO,
+  type EventoExtracto,
+} from "@/lib/finanzas/extractos"
+import type { Moneda } from "@/lib/formato"
+
+const PLAZO_OPENAI_MS = 120_000
+const INTERVALO_LATIDO_MS = 10_000
 
 function error(mensaje: string, status: number) {
   return Response.json({ ok: false, mensaje }, { status })
@@ -86,7 +96,65 @@ export async function POST(request: Request) {
     return error("No pudimos preparar el PDF para su lectura.", 500)
   }
 
-  const cliente = new OpenAI({ apiKey, timeout: 45_000, maxRetries: 0 })
+  const analizar = (signal: AbortSignal) =>
+    analizarExtracto(pdf, guardia.usuario.monedaBase, apiKey, signal)
+
+  if (request.headers.get("accept") === TIPO_FLUJO_EXTRACTO) {
+    return transmitirAnalisis(analizar, request.signal)
+  }
+  return analizar(request.signal)
+}
+
+function transmitirAnalisis(
+  analizar: (signal: AbortSignal) => Promise<Response>,
+  signal: AbortSignal,
+) {
+  const cancelacion = new AbortController()
+  const encoder = new TextEncoder()
+  let latido: ReturnType<typeof setInterval> | undefined
+
+  const flujo = new ReadableStream<Uint8Array>({
+    async start(controller) {
+      const enviar = (evento: EventoExtracto) =>
+        controller.enqueue(encoder.encode(JSON.stringify(evento) + "\n"))
+
+      enviar({ tipo: "analizando" })
+      latido = setInterval(() => {
+        if ((controller.desiredSize ?? 0) > 0) enviar({ tipo: "latido" })
+      }, INTERVALO_LATIDO_MS)
+
+      try {
+        const respuesta = await analizar(AbortSignal.any([signal, cancelacion.signal]))
+        const resultado = await respuesta.json()
+        if (!cancelacion.signal.aborted) enviar({ tipo: "resultado", resultado })
+      } catch {
+        if (!cancelacion.signal.aborted) {
+          enviar({ tipo: "resultado", resultado: { ok: false, mensaje: "No pudimos completar la lectura del extracto." } })
+        }
+      } finally {
+        clearInterval(latido)
+        if (!cancelacion.signal.aborted) controller.close()
+      }
+    },
+    cancel() {
+      clearInterval(latido)
+      cancelacion.abort()
+    },
+  })
+
+  return new Response(flujo, {
+    headers: {
+      "Content-Type": `${TIPO_FLUJO_EXTRACTO}; charset=utf-8`,
+      "Cache-Control": "no-store, no-transform",
+      "X-Accel-Buffering": "no",
+    },
+  })
+}
+
+async function analizarExtracto(pdf: Buffer, moneda: Moneda, apiKey: string, signal: AbortSignal) {
+  const inicio = performance.now()
+  const plazo = AbortSignal.timeout(PLAZO_OPENAI_MS)
+  const cliente = new OpenAI({ apiKey, timeout: PLAZO_OPENAI_MS, maxRetries: 0 })
   try {
     const respuesta = await cliente.responses.parse({
       model: process.env.OPENAI_EXTRACTOS_MODEL || "gpt-4o",
@@ -110,18 +178,28 @@ export async function POST(request: Request) {
         ],
       }],
       text: { format: zodTextFormat(esquemaExtracto, "extracto_deuda") },
-    }, { signal: request.signal })
+    }, { signal: AbortSignal.any([signal, plazo]) })
 
     const datos = respuesta.output_parsed
     if (!datos || [datos.saldo, datos.pagoMinimo, datos.tasaEA].every((valor) => valor === null)) {
       return error("No encontramos cifras claras. Prueba con otro extracto o ingrésalas a mano.", 422)
     }
-    if (datos.moneda !== guardia.usuario.monedaBase) {
-      return error(`El PDF debe mostrar claramente los importes en ${guardia.usuario.monedaBase}.`, 422)
+    if (datos.moneda !== moneda) {
+      return error(`El PDF debe mostrar claramente los importes en ${moneda}.`, 422)
     }
 
     return Response.json({ ok: true, datos })
-  } catch {
+  } catch (fallo) {
+    if (signal.aborted) return error("Se canceló la lectura del extracto.", 499)
+    const agotado = plazo.aborted || fallo instanceof OpenAI.APIConnectionTimeoutError
+    console.error("[extractos] análisis fallido", {
+      duracionMs: Math.round(performance.now() - inicio),
+      motivo: agotado ? "timeout" : "proveedor",
+      estado: fallo instanceof OpenAI.APIError ? fallo.status : undefined,
+    })
+    if (agotado) {
+      return error("El análisis tardó más de 2 minutos. Prueba con un extracto más corto o ingresa los datos a mano.", 504)
+    }
     return error("No pudimos leer el extracto. Prueba con un PDF legible, o ingresa los datos a mano.", 502)
   }
 }

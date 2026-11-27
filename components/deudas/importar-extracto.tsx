@@ -1,11 +1,11 @@
 "use client"
 
-import { useRef, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 
 import { Button } from "@/components/ui/button"
 import { Campo } from "@/components/ui/campo"
-import type { Respuesta } from "@/lib/api-cliente"
-import { MAXIMA_CONTRASENA_EXTRACTO, MAXIMO_EXTRACTO_BYTES, type DatosExtracto } from "@/lib/finanzas/extractos"
+import { MAXIMA_CONTRASENA_EXTRACTO, MAXIMO_EXTRACTO_BYTES, TIPO_FLUJO_EXTRACTO, type DatosExtracto } from "@/lib/finanzas/extractos"
+import { leerResultadoExtracto } from "@/lib/finanzas/leer-extracto"
 import { etiquetasTipoDeuda } from "@/lib/finanzas/etiquetas"
 
 export function ImportarExtracto({
@@ -18,13 +18,17 @@ export function ImportarExtracto({
   const campo = useRef<HTMLInputElement>(null)
   const campoContrasena = useRef<HTMLInputElement>(null)
   const [archivo, setArchivo] = useState<File | null>(null)
-  const [leyendo, setLeyendo] = useState(false)
+  const [fase, setFase] = useState<"enviando" | "analizando" | null>(null)
+  const peticion = useRef<AbortController | null>(null)
+  const leyendo = fase !== null
+
+  useEffect(() => () => peticion.current?.abort(), [])
   const [datos, setDatos] = useState<DatosExtracto | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [aplicado, setAplicado] = useState(false)
 
   async function leer() {
-    if (!archivo || leyendo) return
+    if (!archivo || peticion.current) return
     setError(null)
     setDatos(null)
     setAplicado(false)
@@ -43,14 +47,19 @@ export function ImportarExtracto({
     formulario.set("archivo", archivo, "extracto.pdf")
     formulario.set("contrasena", contrasena)
 
-    setLeyendo(true)
+    const cancelacion = new AbortController()
+    const plazo = AbortSignal.timeout(180_000)
+    peticion.current = cancelacion
+    setFase("enviando")
     try {
       const respuesta = await fetch("/api/deudas/extracto", {
         method: "POST",
+        headers: { Accept: TIPO_FLUJO_EXTRACTO },
         body: formulario,
-        signal: AbortSignal.timeout(60_000),
+        signal: AbortSignal.any([cancelacion.signal, plazo]),
       })
-      const resultado: Respuesta<{ datos: DatosExtracto }> = await respuesta.json()
+      const resultado = await leerResultadoExtracto(respuesta, () => setFase("analizando"))
+      if (cancelacion.signal.aborted) return
       if (resultado.ok) {
         setDatos(resultado.datos)
         if (campoContrasena.current) campoContrasena.current.value = ""
@@ -58,9 +67,13 @@ export function ImportarExtracto({
         setError(resultado.mensaje)
       }
     } catch {
-      setError("No pudimos leer el extracto. Puedes volver a intentarlo o ingresar los datos a mano.")
+      if (cancelacion.signal.aborted) return
+      setError(plazo.aborted
+        ? "Se agotó el tiempo de espera del envío. Prueba con un extracto más corto o ingresa los datos a mano."
+        : "No pudimos leer el extracto. Puedes volver a intentarlo o ingresar los datos a mano.")
     } finally {
-      setLeyendo(false)
+      peticion.current = null
+      if (!cancelacion.signal.aborted) setFase(null)
     }
   }
 
@@ -101,9 +114,14 @@ export function ImportarExtracto({
         />
       )}
       <Button type="button" variant="secondary" onClick={leer} disabled={disabled || leyendo || !archivo}>
-        {leyendo ? "Leyendo extracto…" : "Leer extracto"}
+        Leer extracto
       </Button>
 
+      {fase && (
+        <p role="status" className="text-menor">
+          {fase === "enviando" ? "Enviando y abriendo el PDF…" : "Analizando el extracto… Puede tardar hasta 2 minutos."}
+        </p>
+      )}
       {error && <p role="alert" className="text-menor text-deuda">{error}</p>}
       {datos && (
         <div className="flex flex-col gap-2 text-menor" aria-live="polite">

@@ -1,3 +1,4 @@
+import type { Respuesta } from "@/lib/api-cliente"
 import { z } from "zod"
 
 import { tiposDeuda } from "@/lib/finanzas/etiquetas"
@@ -16,3 +17,11 @@ export const esquemaExtracto = z.object({
 })
 
 export type DatosExtracto = z.infer<typeof esquemaExtracto>
+
+export const TIPO_FLUJO_EXTRACTO = "application/x-ndjson"
+
+export type ResultadoExtracto = Respuesta<{ datos: DatosExtracto }>
+export type EventoExtracto =
+  | { tipo: "analizando" }
+  | { tipo: "latido" }
+  | { tipo: "resultado"; resultado: ResultadoExtracto }
