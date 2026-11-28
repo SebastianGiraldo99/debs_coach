@@ -1,8 +1,9 @@
-import { createRequire } from "node:module"
-import { dirname, join } from "node:path"
 import crearQpdf, { type QpdfInstance } from "@neslinesli93/qpdf-wasm"
 
-const resolver = createRequire(import.meta.url)
+// Si algo falla antes del try interno de Emscripten (por ejemplo, en
+// `locateFile`), la promesa del módulo no se resuelve ni se rechaza nunca. Sin
+// este plazo, la petición quedaba colgada hasta que Nginx respondía con 504.
+const PLAZO_CARGA_QPDF_MS = 15_000
 
 type SistemaVirtual = QpdfInstance["FS"] & {
   init: (entrada: null, salida: (byte: number) => void, error: (byte: number) => void) => void
@@ -13,7 +14,15 @@ export async function desbloquearExtracto(pdf: Buffer, contrasena: string) {
   let claveInvalida = false
   let finLinea = ""
   const opciones = {
-    locateFile: () => join(dirname(resolver.resolve("@neslinesli93/qpdf-wasm")), "qpdf.wasm"),
+    // Emscripten llama a `locateFile(archivo, prefijo)` con el `__dirname` de
+    // su propio `qpdf.js` como prefijo, que es donde está `qpdf.wasm`. El
+    // paquete es externo (`serverExternalPackages`), así que ese directorio es
+    // el real de node_modules. La versión anterior calculaba la ruta con
+    // `createRequire().resolve()`, pero Turbopack reescribe esa llamada por el
+    // id numérico del módulo: `dirname()` recibía un número y lanzaba solo en
+    // el build de producción. (Los tipos del paquete declaran `() => string`,
+    // de ahí el rest.)
+    locateFile: (...[archivo, prefijo]: string[]) => prefijo + archivo,
     preRun: [(instancia: QpdfInstance) => {
       // Silencia la salida de QPDF para que el documento y la clave queden
       // fuera de los logs, aun cuando el archivo sea inválido.
@@ -29,7 +38,14 @@ export async function desbloquearExtracto(pdf: Buffer, contrasena: string) {
     }],
   }
 
-  const qpdf = await crearQpdf(opciones)
+  let temporizador: ReturnType<typeof setTimeout> | undefined
+  const plazo = new Promise<never>((_, rechazar) => {
+    temporizador = setTimeout(
+      () => rechazar(new Error("QPDF no terminó de cargar a tiempo")),
+      PLAZO_CARGA_QPDF_MS,
+    )
+  })
+  const qpdf = await Promise.race([crearQpdf(opciones), plazo]).finally(() => clearTimeout(temporizador))
   // QPDF opera en un sistema de archivos virtual. La clave se pasa a
   // WebAssembly en memoria, sin invocar un proceso ni un shell.
   const fs = qpdf.FS as SistemaVirtual
